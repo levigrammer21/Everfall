@@ -254,3 +254,78 @@ svg{flex:none;vertical-align:middle}
 .comparison{display:grid;grid-template-columns:minmax(72px,1fr) repeat(2,minmax(0,1fr));gap:1px;background:#4a3651;border:1px solid #4a3651;border-radius:8px;overflow:hidden;font-size:.72rem}
 .comparison>*{background:#21182d;padding:7px 6px;min-width:0;overflow-wrap:anywhere}
 .comparison small{display:block;font-size:.63rem;margin-top:3px}
+
+/* Illustrated inventory and battlefield meter */
+.panel-bar strong{text-transform:uppercase}
+.inventory-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:5px;margin:0 0 14px;background:#15111e;border:1px solid #3a2c46;border-radius:11px}
+.inventory-switch .btn{min-width:0;min-height:38px;border-color:transparent}
+.inventory-switch .btn.quiet{background:transparent}
+.inventory-switch .btn span{font-size:.65rem;border-radius:8px;background:#16102145;padding:1px 4px}
+.item-art{display:grid;place-items:center;flex:0 0 auto;width:42px;height:42px;overflow:hidden;border-radius:8px;border:1px solid color-mix(in srgb,var(--tone) 41%,#231b31);background:radial-gradient(ellipse at 49% 64%,color-mix(in srgb,var(--tone) 29%,#20172c),#161223 72%);box-shadow:inset 0 0 8px #0c071867}
+.item-art .portrait,.char .item-art .portrait,.subject .item-art .portrait{transform:scale(.77);margin:0;filter:drop-shadow(1px 2px 1px #110d20)}
+.subject .item-art{width:56px;height:56px;margin:0 4px}
+.subject .item-art .portrait{transform:scale(1)}
+.gear-slot .item-art{width:29px;height:29px}
+.gear-slot .item-art .portrait{transform:scale(.53)}
+.inventory-layout .char{padding:5px 7px 5px 5px;gap:7px}
+.item-back{display:none}
+.loot-intro{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:8px 0}
+.loot-intro strong{font-family:Georgia,serif;font-size:1.22rem;color:#f1dcc8}
+.loot-intro span{font-size:.72rem;color:var(--muted);text-align:right}
+.loot-ranks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+.loot-feed{display:grid;gap:7px}
+.loot-card{display:flex;align-items:center;text-align:left;gap:9px;padding:7px 9px;min-height:58px;border:1px solid #43354d;border-left:3px solid var(--tone);border-radius:9px;color:var(--paper);background:linear-gradient(110deg,color-mix(in srgb,var(--tone) 13%,#21182d),#21182a 66%);width:100%}
+button.loot-card:hover{border-color:var(--tone)}
+.drop-copy{display:grid;gap:2px;flex:1;min-width:0}
+.drop-copy small{font-size:.65rem;color:var(--tone)}
+.drop-copy strong{font-size:.87rem;overflow-wrap:anywhere}
+.drop-copy>span,.drop-state{font-size:.67rem;color:#c2b4cb}
+.drop-state{text-align:right;max-width:76px}
+.live-toggle[aria-expanded=true]{color:#ffd19d;background:#4b3047;border-color:#d3a37f}
+.live-meter{position:absolute;z-index:4;left:clamp(9px,3vw,44px);top:clamp(96px,19vh,136px);width:min(610px,calc(100% - 18px));max-height:53%;display:flex;flex-direction:column;background:#161221f2;border:1px solid #715571;border-radius:11px;box-shadow:0 12px 30px #0c091787;overflow:hidden}
+.live-bar,.live-caption{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.live-bar{flex:none;padding:5px 6px 5px 10px;border-bottom:1px solid #4b3854;background:#2a2035}
+.live-bar>strong{color:#f3c89a;font-family:Georgia,serif;font-size:.91rem;white-space:nowrap}
+.live-bar>strong svg{height:15px;width:15px;margin-right:4px}
+.live-bar>div{display:flex;align-items:center;gap:4px}
+.live-bar button{font-size:.7rem;border:1px solid #5b4566;background:#21192c;border-radius:5px;min-height:27px;padding:3px 6px}
+.live-bar button[aria-pressed=true]{background:#54405a;color:#ffd19a}
+.live-bar .live-close svg{width:13px;height:13px}
+.meter-body{overflow:auto;min-height:0}
+.live-caption{padding:6px 9px;font-size:.7rem;color:#d0bdcf}
+.live-table{overflow:auto;scrollbar-width:thin;overscroll-behavior-x:contain}
+.live-table table{border-collapse:separate;border-spacing:0;font-size:.72rem;white-space:nowrap;min-width:100%}
+.live-table th,.live-table td{padding:5px 8px;border-bottom:1px solid #392c44;text-align:right}
+.live-table thead th{color:#e3c09e;background:#2b2038;font-weight:700}
+.live-table th:first-child{position:sticky;left:0;z-index:1;text-align:left;background:#22192e;min-width:108px}
+.live-table tbody th{padding:2px 5px}
+.live-hero{display:flex;align-items:center;gap:4px;min-height:30px;border:0;background:transparent;text-align:left;padding:0 3px 0 0;color:#f4e6eb;font-size:.72rem;font-weight:720}
+.live-hero[aria-pressed=true]{color:#ffd69f}
+.live-hero .portrait{transform:scale(.52);margin:-9px -10px}
+.live-hero small{display:block;font-size:.58rem}
+.meter-note,.meter-empty{padding:6px 9px;font-size:.67rem;color:#cbb7d0}
+.live-detail{padding:8px}
+.live-detail>strong{font-size:.76rem;color:#ffe0b9}
+.live-detail>div{margin-top:5px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.live-breakdown{min-width:0;padding:5px 6px;border:1px solid #443452;border-radius:5px;font-size:.65rem;color:#d6c5d8;overflow-wrap:anywhere}
+.live-breakdown>b{display:block;color:#f2d3ad;margin-bottom:3px}
+.live-breakdown>div{display:flex;gap:4px;justify-content:space-between;margin:3px 0}
+.opening{padding:25px}
+@media(max-width:590px){
+ .inventory-layout{display:block}
+ .inventory-layout:not(.inspecting) .inventory-detail,.inventory-layout.inspecting .gear-list{display:none}
+ .inventory-layout .item-back{display:inline-flex;margin-bottom:8px}
+ .inventory-layout .collection{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .inventory-layout .char{min-height:56px}
+}
+@media(orientation:landscape) and (max-height:620px){
+ .live-meter{top:76px;max-height:55%;width:min(570px,calc(100% - 18px))}
+}
+.live-toggle{display:inline-flex;align-items:center;gap:4px}
+.live-toggle span{font-size:.66rem}
+@media(max-width:520px){.live-toggle span{display:none}}
+@media(max-width:590px){.inventory-tools.inspecting{display:none}}
+.field-toast{bottom:auto;top:clamp(105px,21vh,144px);left:auto;right:clamp(9px,2.4vw,35px);transform:translateY(10px)}
+.field-toast.show{animation-name:loot-notice}
+@keyframes loot-notice{10%,85%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-7px)}}
+@media(orientation:landscape) and (max-height:620px){.field-toast{top:53px}}

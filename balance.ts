@@ -2,10 +2,12 @@ import { heroes, pets } from './content';
 import { sampleBattle } from './combat';
 import { bases } from './loot';
 import { finish, offline } from './progression';
-import { activeRewards, ascend, assignJob, assignPet, canEquip, equip, equipped, hatch, levelOf, masteryPoints, newSave, summon, train, work, type Save } from './save';
+import { activeRewards, ascend, assignJob, assignPet, canEquip, equip, equipped, hatch, levelOf, masteryPoints, newSave, setParty, summon, train, work, type Save } from './save';
 const DAY=86400000;
 function manage(s:Save){
+ if(s.party.length<5&&s.crystals&&s.crystals<10)summon(s,1);
  for(let n=0;n<Math.min(40,Math.floor(s.crystals/10));n++)summon(s,10);
+ for(const id of Object.keys(s.hero).map(Number))if(s.party.length<5&&!s.party.includes(id))setParty(s,id,s.party.length);
  for(let tier=0;tier<3;tier++)for(let n=Math.min(30,s.egg[tier]);n>0;n--)hatch(s,tier);
  const collection=Object.keys(s.pet).map(Number).sort((a,b)=>pets[b].rarity-pets[a].rarity||s.pet[b].xp-s.pet[a].xp);
  for(const [slot,h] of s.party.entries()){
@@ -30,7 +32,7 @@ function online(s:Save,seconds:number){
  }
  work(s,seconds);s.updated+=seconds*1000;
 }
-const s=newSave(0,31415);
+const s=newSave(0,31415);summon(s,1);
 function report(label:string){
  console.log(JSON.stringify({period:label,stage:s.stage,best:s.best,mode:s.mode,levels:s.party.map(h=>levelOf(s.hero[h].xp)),
   stars:s.party.map(h=>s.hero[h].stars),heroCount:Object.keys(s.hero).length,petCount:Object.keys(s.pet).length,

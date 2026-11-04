@@ -1,16 +1,17 @@
 import { heroes,pets,starters,dungeons,guildJobs,worldEvents } from './content';
-import { bases, makeItem, rollAffix, gearStats, slots, type Item, type RNG } from './loot';
+import { bases, itemName, rollAffix, gearStats, slots, type Item, type RNG } from './loot';
 export const MAX=1e100;
 export const safe=(n:number)=>Math.max(0,Math.min(MAX,Number.isNaN(n)?0:n));
 export const capStage=1_000_000_000;
 export type Progress={xp:number;essence:number;stars:number};
 export type HeroProgress=Progress&{pet:number|null;gear:(string|null)[];job:number|null;tree:number[];ai:'Balanced'|'Aggressive'|'Conserve';priority:number[]};
-export type Metric={petId?:number;damage:number;pet:number;bonus:number;heal:number;overheal:number;shield:number;prevent:number;crits:number;misses:number;attacks:number;casts:number;deaths:number;bySkill:Record<string,number>;uptime:Record<string,number>};
+export type Metric={petId?:number;taken?:number;received?:number;absorbed?:number;kills?:number;incoming?:Record<string,number>;healsBySkill?:Record<string,number>;damage:number;pet:number;bonus:number;heal:number;overheal:number;shield:number;prevent:number;crits:number;misses:number;attacks:number;casts:number;deaths:number;bySkill:Record<string,number>;uptime:Record<string,number>};
 export type BattleRecord={stage:number;name:string;seconds:number;win:boolean;xp:number;gold:number;items:number;damage:number;healing:number;details:Record<string,Metric>;sources:Record<string,number>;enemyUptime?:Record<string,number>;log:string[]};
+export type LootEntry={id:string;base:number;rank:number;name:string;level:number;stage:number;kept:boolean;source?:string};
 export type Save={
  version:number;updated:number;stage:number;best:number;mode:'Push'|'Farm';wave:number;lastFarm:number;
  gold:number;crystals:number;keys:number;universal:number;serial:number;seed:number;egg:number[];gems:number[];hero:Record<number,HeroProgress>;pet:Record<number,Progress>;party:number[];sanctuary:number[];
- items:Item[];pity:number[];summons:number;hatches:number;summonLog:{id:number;dupe:boolean}[];hatchLog:{id:number;dupe:boolean;tier:number}[];history:string[];
+ items:Item[];pity:number[];summons:number;hatches:number;summonLog:{id:number;dupe:boolean}[];hatchLog:{id:number;dupe:boolean;tier:number}[];history:(LootEntry|string)[];
  research:number;guildXp:number;guildBank:number[];jobTime:number;infirmary:number;discover:Record<string,number>;scout:number;events:number[];
  dungeon:{id:number;tier:number;wave:number;camp:boolean}|null; dungeonWins:number; loot:number;kills:number;wins:number;losses:number;seconds:number;totalGold:number;totalXP:number;
  offlineSeconds:number; records:BattleRecord[]; claimed:string[];title:string;
@@ -19,8 +20,8 @@ export type Save={
 const progress=():Progress=>({xp:0,essence:0,stars:0});
 const heroProgress=():HeroProgress=>({...progress(),pet:null,gear:Array(10).fill(null),job:null,tree:[],ai:'Balanced',priority:[0,1,2]});
 export const newSave=(now=Date.now(),seed=Math.floor(Math.random()*2**32)):Save=>({
- version:3,updated:now,stage:1,best:0,mode:'Push',wave:0,lastFarm:1,gold:40,crystals:0,keys:0,universal:0,serial:0,seed:seed>>>0,egg:[0,0,0],gems:[0,0,0,0,0,0],
- hero:Object.fromEntries(starters.map(id=>[id,heroProgress()])),pet:{},party:[...starters],sanctuary:[],items:[],pity:[0,0,0],summons:0,hatches:0,summonLog:[],hatchLog:[],history:[],research:0,guildXp:0,guildBank:Array(9).fill(0),jobTime:0,infirmary:0,discover:{},scout:0,events:Array(8).fill(0),
+ version:3,updated:now,stage:1,best:0,mode:'Push',wave:0,lastFarm:1,gold:40,crystals:1,keys:0,universal:0,serial:0,seed:seed>>>0,egg:[0,0,0],gems:[0,0,0,0,0,0],
+ hero:{},pet:{},party:[],sanctuary:[],items:[],pity:[0,0,0],summons:0,hatches:0,summonLog:[],hatchLog:[],history:[],research:0,guildXp:0,guildBank:Array(9).fill(0),jobTime:0,infirmary:0,discover:{},scout:0,events:Array(8).fill(0),
  dungeon:null,dungeonWins:0,loot:0,kills:0,wins:0,losses:0,seconds:0,totalGold:0,totalXP:0,offlineSeconds:0,records:[],claimed:[],title:'Wanderer',loadouts:[],autoSell:-1,settings:{speed:1,quality:2,shake:1,music:.24,sfx:.55}
 });
 export function restore(raw:unknown):Save{
@@ -32,7 +33,14 @@ export function restore(raw:unknown):Save{
  s.hero=Object.fromEntries(Object.entries(s.hero).filter(([id])=>heroes[+id]).map(([id,p])=>[id,{...heroProgress(),...p}]));
  s.pet=Object.fromEntries(Object.entries(s.pet).filter(([id])=>pets[+id]).map(([id,p])=>[id,{...progress(),...p}]));
  s.party=[...new Set(s.party)].filter(id=>s.hero[id]).slice(0,5);
- if(!s.party.length){for(const id of starters)s.hero[id]??=heroProgress();s.party=[...starters];}
+ if(!s.party.length){
+  const owned=Object.keys(s.hero).map(Number);
+  if(owned.length)s.party=[owned[0]];
+  else if(data.hero===undefined&&data.party===undefined&&(data.stage??1)>1){
+   for(const id of starters)s.hero[id]=heroProgress();
+   s.party=[...starters];
+  }else s.crystals=Math.max(1,s.crystals);
+ }
  const reserved=new Set<number>(),worn=new Set<string>();
  for(const id of s.party)s.hero[id].job=null;
  for(const [id,h] of Object.entries(s.hero)){
@@ -68,6 +76,7 @@ export function summon(s:Save,count:1|10,rng:RNG=()=>random(s)){
   if(dupe)s.hero[id].essence+=1;else s.hero[id]=heroProgress();
   s.pity=s.pity.map((p,i)=>rarity>=i+2?0:p+1);s.summons++;results.push({id,dupe});
  }
+ if(!s.party.length&&results.length){s.party=[results[0].id];s.hero[results[0].id].job=null;}
  s.summonLog=[...results,...s.summonLog].slice(0,40);return results;
 }
 export const eggOdds=[[60,29,9,1.8,.2],[24,44,24,7,1],[4,23,42,25,6]];
@@ -111,12 +120,25 @@ export function sell(s:Save,ids:string[]){
  s.items=s.items.filter(i=>{if(!allowed.has(i.id))return true;s.gold=safe(s.gold+sellValue(i));return false;});
  return allowed.size;
 }
-export function addLoot(s:Save,stage:number,bonus=0){
- const i=makeItem(stage,()=>random(s),String(++s.serial),bonus);s.loot++;
- if(i.rank<=s.autoSell){s.gold=safe(s.gold+sellValue(i));return null;}
- if(s.items.length>=400){const discard=s.items.find(x=>!x.locked&&!equipped(s,x.id)&&x.rank<i.rank);
-  if(discard)sell(s,[discard.id]);else{s.gold=safe(s.gold+sellValue(i));return null;}}
- s.items.push(i);return i;
+export function lootHistory(s:Save){
+ return s.history.flatMap((entry):LootEntry[]=>{
+  if(typeof entry!=='string')return [entry];
+  const id=entry.match(/^Found gear #(\d+) at stage \d+$/)?.[1];
+  const item=s.items.find(item=>item.id===id);
+  return item?[{id:item.id,base:item.base,rank:item.rank,name:itemName(item),level:item.level,stage:item.found,kept:true}]:[];
+ });
+}
+export function collectLoot(s:Save,i:Item,source?:string){
+ i.id=String(++s.serial);s.loot++;
+ let kept=i.rank>s.autoSell;
+ if(kept&&s.items.length>=400){
+  const discard=s.items.find(x=>!x.locked&&!equipped(s,x.id)&&x.rank<i.rank);
+  if(discard)sell(s,[discard.id]);else kept=false;
+ }
+ if(kept)s.items.push(i);else s.gold=safe(s.gold+sellValue(i));
+ s.history.unshift({id:i.id,base:i.base,rank:i.rank,name:itemName(i),level:i.level,stage:i.found,kept,source});
+ s.history=s.history.slice(0,40);
+ return kept;
 }
 export function enchant(s:Save,id:string,roll:number){
  const i=s.items.find(x=>x.id===id),cost=i?30+Math.ceil((i.level+1)**1.34)*(6+2*i.rank)+18*i.enchants**2:0;

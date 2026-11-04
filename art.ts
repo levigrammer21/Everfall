@@ -1,3 +1,5 @@
+import { drawItem } from './item-art';
+import { bases } from './loot';
 import { biomes, elements, enemies, heroes, pets } from './content';
 import { prng } from './combat';
 const shade=(h:number,s:number,l:number)=>'hsl('+h+' '+s+'% '+l+'%)';
@@ -163,9 +165,10 @@ function sprite(c:CanvasRenderingContext2D,d:Design,key:string){
 export const allShapes=[...new Set([...heroes,...pets,...enemies].map(x=>x.shape).concat(['ghost','tree','rock','knight','reaper','dragon','spider','frog','skeleton','brute','goblin','horse','chest','candle','egg','wizard','rat']))];
 export function actorAtlas(){
  const list=[...heroes.map(d=>({...d,key:'h'+d.id})),...pets.map(d=>({...d,key:'p'+d.id})),...enemies.map(d=>({...d,key:'e'+d.id})),...allShapes.flatMap((shape,i)=>Array.from({length:10},(_,n)=>({shape,id:i,hue:(n*36+i*11)%360,element:(['steel','fire','ice','storm','venom','holy','void','life'] as const)[n%8],key:'s'+shape+n})))];
- const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.ceil(list.length/16)*32;const ctx=canvas.getContext('2d')!;
+ const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.ceil((list.length+bases.length)/16)*32;const ctx=canvas.getContext('2d')!;
  const frames:Record<string,{x:number;y:number}>={};
  list.forEach((d,i)=>{const x=i%16*32,y=Math.floor(i/16)*32;frames[d.key]={x,y};ctx.save();ctx.translate(x,y);sprite(ctx,d,d.key);ctx.restore();});
+ bases.forEach(({id})=>{const i=list.length+id,x=i%16*32,y=Math.floor(i/16)*32;frames['i'+id]={x,y};ctx.save();ctx.translate(x,y);drawItem(ctx,id);ctx.restore();});
  return {canvas,frames};
 }
 const terrains=['forest','ridge','ice','dunes','marsh','crypt','ridge','wastes','castle','astral'];

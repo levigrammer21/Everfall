@@ -1,4 +1,4 @@
-import { achievements, activeRewards, ascensionCost, canEquip, equipped, equippedItems, levelOf, masteryDescriptions, masteryNames, masteryPoints, needXP, sellValue, wornBy, type Save } from './save';
+import { lootHistory, achievements, activeRewards, ascensionCost, canEquip, equipped, equippedItems, levelOf, masteryDescriptions, masteryNames, masteryPoints, needXP, sellValue, wornBy, type Save } from './save';
 import { biomes, bonds, colors, dungeons, eggNames, eliteMods, elements, enemies, guildJobs, heroLore, heroes, pets, rarities, worldEvents } from './content';
 import { affixes, bases, gemNames, itemColors, itemName, itemRanks, opposite, sets, slots, uniques, type Item } from './loot';
 import { actorAtlas, rgb } from './art';
@@ -24,8 +24,8 @@ export function portrait(key:string){
  const f=portraitSheet.frames[key];
  return f?'<i class="portrait" aria-hidden="true" style="--px:'+(-f.x*1.5)+'px;--py:'+(-f.y*1.5)+'px;--ph:'+(portraitSheet.canvas.height*1.5)+'px"></i>':'';
 }
-export type View={tab:typeof tabs[number]|null;hero:number;pet:number;item:string;search:string;filter:string;sort:string;page:number;stat:string;statIndex:number;compareIndex:number;setting:boolean;pop:{title:string;body:string;style?:string}|null;sync:string;email:string;pause:boolean};
-export const defaultView=():View=>({tab:null,hero:39,pet:0,item:'',search:'',filter:'All',sort:'Rarity',page:0,stat:'Battle report',statIndex:0,compareIndex:1,setting:false,pop:null,sync:'Local save',email:'',pause:false});
+export type View={tab:typeof tabs[number]|null;hero:number;pet:number;item:string;search:string;filter:string;sort:string;page:number;stat:string;statIndex:number;compareIndex:number;setting:boolean;pop:{title:string;body:string;style?:string}|null;sync:string;email:string;pause:boolean;inventory:'Gear'|'Loot log'|'Loadouts';itemFocus:boolean};
+export const defaultView=():View=>({tab:null,hero:39,pet:0,item:'',search:'',filter:'All',sort:'Rarity',page:0,stat:'Battle report',statIndex:0,compareIndex:1,setting:false,pop:null,sync:'Local save',email:'',pause:false,inventory:'Gear',itemFocus:false});
 export const btn=(label:string,action:string,cls='',disabled=false)=>'<button class="btn '+cls+'" data-action="'+esc(action)+'"'+(disabled?' disabled':'')+'>'+label+'</button>';
 const pill=(label:string,col='')=>'<span class="pill"'+(col?' style="--tone:'+col+'"':'')+'>'+esc(label)+'</span>';
 const message=(body:string)=>'<div class="empty">'+body+'</div>';
@@ -42,6 +42,7 @@ function sortList<T extends {id:number;name:string;rarity:number}>(list:T[],s:Sa
  const p=isPet?s.pet:s.hero;
  return list.sort((a,b)=>v.sort==='Name'?a.name.localeCompare(b.name):v.sort==='Level'?(p[b.id]?.xp??-1)-(p[a.id]?.xp??-1):v.sort==='Recent'?b.id-a.id:b.rarity-a.rarity);
 }
+const itemPortrait=(base:number,rank:number)=>'<i class="item-art" style="--tone:'+itemColors[rank]+'">'+portrait('i'+base)+'</i>';
 const slotIcon=(slot:number)=>icon(slot===4?'sword':slot===8||slot===7||slot===6?'crystal':slot===9?'Summon':slot===5?'Heroes':'Inventory');
 function skillText(effect:string){return ({
  strike:'Deals direct damage.',burst:'Hits a primary target and splashes onto nearby enemies.',chain:'Jumps between enemies.',burn:'Burns the target over time.',poison:'Poisons multiple targets over time.',bleed:'Inflicts ongoing physical damage.',freeze:'Stops enemy actions briefly.',fear:'Prevents enemy actions briefly.',weaken:'Reduces enemy damage and makes it easier to hurt.',heal:'Restores health to injured allies.',shield:'Absorbs damage for vulnerable allies.',guard:'Reduces damage taken.',summon:'Summons a temporary ally.',execute:'Deals heavy damage to weakened enemies.',haste:'Speeds up basic attacks and skill recovery.',leech:'Deals damage and restores health.',reflect:'Returns part of incoming damage.',blind:'Makes the target miss more often.',root:'Prevents movement briefly.',push:'Knocks a target away.',pull:'Drags a target closer.',mark:'Increases damage taken by the target.',regen:'Restores health over time.',revive:'Revives a fallen ally once per encounter.',evade:'Dodges a portion of incoming attacks.',cleanse:'Removes harmful effects and restores health.',crit:'Delivers a guaranteed critical strike.'
@@ -63,9 +64,9 @@ function heroPanel(s:Save,v:View){
  const activeBonds=bonds.filter(b=>b.a===h.id||b.b===h.id);
  return hgroup('THE WAR BAND','Heroes',Object.keys(s.hero).length+' / 50 collected · arrange five active heroes')+filters(v,['Owned','Active',...rarities])+
  '<div class="split"><div><div class="collection">'+(list.slice(v.page*12,v.page*12+12).map(x=>char('h'+x.id,x.name,s.hero[x.id]?'Lv. '+heroLv(s,x.id)+' · '+x.role:rarities[x.rarity]+' · Undiscovered','hero:'+x.id,x.id===h.id,x.rarity,!s.hero[x.id])).join('')||message('No heroes match.'))+'</div>'+listPage(v,list.length,12)+'</div><div class="details">'+detail+
- (p?levels(p.xp)+section('Formation & behavior','<div class="controls">'+select('party:'+h.id,[[-1,'Choose formation slot'],...[0,1,2,3,4].map((i):[number,string]=>[i,(i+1)+'. '+(s.party[i]!==undefined?heroes[s.party[i]].name:'Empty')])],slot,'Formation slot')+
+ (p?levels(p.xp)+section('Formation & behavior','<div class="controls">'+select('party:'+h.id,[[-1,'Choose formation slot'],...[0,1,2,3,4].map((i):[number,string]=>[i,(i+1)+'. '+(s.party[i]!==undefined?heroes[s.party[i]].name:'Empty')])],slot,'Formation slot')+(slot<0&&s.party.length<5?btn('Add to party','partyAdd:'+h.id,'gold'):'')+
  select('ai:'+h.id,['Balanced','Aggressive','Conserve'].map(x=>[x,x]),p.ai,'Combat AI')+'</div><p class="muted">Skill priority</p><div class="controls">'+p.priority.map((n,i)=>btn((i+1)+'. '+esc(h.skills[n].name),'priority:'+h.id+':'+i,'quiet')).join('')+'</div>')+
- section('Equipment & companion','<div class="gear-grid">'+slots.map((name,i)=>{const item=items.find(g=>g.id===p.gear[i]);return btn(slotIcon(i)+'<span>'+name+'<small>'+(item?esc(itemName(item)):'Empty')+'</small></span>',item?'item:'+item.id:'slot:'+i,'gear-slot');}).join('')+'</div><div class="controls"><label>Companion '+select('petFor:'+h.id,[[-1,'No pet'],...Object.keys(s.pet).map((id):[number,string]=>[+id,pets[+id].name])],p.pet??-1,'Hero companion')+'</label>'+
+ section('Equipment & companion','<div class="gear-grid">'+slots.map((name,i)=>{const item=items.find(g=>g.id===p.gear[i]);return btn((item?itemPortrait(item.base,item.rank):slotIcon(i))+'<span>'+name+'<small>'+(item?esc(itemName(item)):'Empty')+'</small></span>',item?'item:'+item.id:'slot:'+i,'gear-slot');}).join('')+'</div><div class="controls"><label>Companion '+select('petFor:'+h.id,[[-1,'No pet'],...Object.keys(s.pet).map((id):[number,string]=>[+id,pets[+id].name])],p.pet??-1,'Hero companion')+'</label>'+
  btn('Save equipment loadout','saveLoadout:'+h.id,'quiet',s.loadouts.length>=12)+'</div>')+
  section('Ascension','<p>'+p.stars+' / 10 stars · '+p.essence+' '+esc(h.name)+' Essence</p><div class="controls">'+btn('Ascend · '+ascensionCost(p.stars)+' essence','ascendH:'+h.id,'gold',p.stars>=10||p.essence<ascensionCost(p.stars))+btn('Convert 5 spare essence','convert:'+h.id,'quiet',p.stars<10||p.essence<5)+'</div>')+
  section('Mastery · '+masteryPoints(p)+' points','<div class="tree">'+masteryNames.map((n,i)=>btn('<strong>'+n+'</strong><small>'+masteryDescriptions[i]+'</small>','master:'+h.id+':'+i,p.tree.includes(i)?'mastery on':'mastery',p.tree.includes(i)||masteryPoints(p)<=0||(i%4!==0&&!p.tree.includes(i-1)))).join('')+'</div>'+btn('Respec · 60 gold','respec:'+h.id,'quiet',!p.tree.length||s.gold<60)):'<p class="muted">Unlock through the summoning circle. You can inspect abilities before collecting this hero.</p>')+
@@ -89,20 +90,32 @@ function rolls(i:Item){
  return i.rolls.map((r,k)=>'<div class="skill"><strong>'+esc(affixes[r.affix].name)+'</strong><small>+'+num(r.value*(['attack','health','armor'].includes(affixes[r.affix].stat)?1:100))+(['attack','health','armor'].includes(affixes[r.affix].stat)?'':'%')+'</small><p>'+esc(affixes[r.affix].side)+' '+btn('Reroll','enchant:'+i.id+':'+k,'micro')+'</p></div>').join('');
 }
 function itemPanel(s:Save,v:View){
+ const log=lootHistory(s),counts=Array(6).fill(0);for(const drop of log)counts[drop.rank]++;
+ const header=hgroup('THE ARMORY','Inventory',num(s.items.length)+' / 400 slots · '+num(s.loot)+' lifetime drops')+
+ '<div class="inventory-switch">'+(['Gear','Loot log','Loadouts'] as const).map(key=>btn(key+(key==='Loot log'&&log.length?' <span>'+log.length+'</span>':''),'inventory:'+key,key===v.inventory?'gold':'quiet')).join('')+'</div>';
+ if(v.inventory==='Loot log'){
+  return header+'<div class="loot-intro"><strong>Recent drops</strong><span>Loot is collected on victory</span></div><div class="loot-ranks">'+itemRanks.flatMap((name,i)=>counts[i]?[pill(name+' '+counts[i],itemColors[i])]:[]).join('')+'</div>'+
+   '<div class="loot-feed">'+(log.map(drop=>{
+    const item=s.items.find(i=>i.id===drop.id);
+    const tag=drop.kept?(item?'In inventory':'Removed'):'Auto-sold';
+    const copy=itemPortrait(drop.base,drop.rank)+'<span class="drop-copy"><small>'+itemRanks[drop.rank]+' · '+slots[bases[drop.base].slot]+' · Lv. '+drop.level+'</small><strong>'+esc(drop.name)+'</strong><span>Stage '+num(drop.stage)+(drop.source?' · '+esc(drop.source):'')+'</span></span><span class="drop-state">'+tag+(item?' ›':'')+'</span>';
+    return item?'<button class="loot-card" style="--tone:'+itemColors[drop.rank]+'" data-action="item:'+esc(drop.id)+'">'+copy+'</button>':'<div class="loot-card" style="--tone:'+itemColors[drop.rank]+'">'+copy+'</div>';
+   }).join('')||message('Win encounters to collect gear. Your latest drops will appear here.'))+'</div>';
+ }
+ if(v.inventory==='Loadouts')return header+section('Saved loadouts',s.loadouts.map((l,index)=>'<div class="controls"><strong>'+esc(l.name)+'</strong>'+btn('Apply','loadout:'+index,'quiet')+btn('Remove','deleteLoadout:'+index,'micro')+'</div>').join('')||'<p class="muted">Save a hero’s current equipment from the Heroes panel.</p>');
  const visible=s.items.filter(i=>match(itemName(i)+' '+bases[i.base].name,v.search)&&(v.filter==='All'||v.filter===slots[bases[i.base].slot]||v.filter===itemRanks[i.rank]||(v.filter==='Equipped'&&equipped(s,i.id))||(v.filter==='Locked'&&i.locked))).sort((a,b)=>v.sort==='Name'?itemName(a).localeCompare(itemName(b)):v.sort==='Level'?b.level-a.level:v.sort==='Recent'?+b.id-+a.id:b.rank-a.rank||b.level-a.level);
  const i=s.items.find(x=>x.id===v.item)??visible[0],hero=s.hero[v.hero]?v.hero:s.party[0],base=i?bases[i.base]:null;
  const compare=base?s.items.find(x=>s.hero[hero].gear[base.slot]===x.id):undefined,owner=i?wornBy(s,i.id):undefined;
- return hgroup('THE ARMORY','Inventory',s.items.length+' / 400 slots · worn and locked gear is protected')+filters(v,['Equipped','Locked',...itemRanks,...slots])+
- '<div class="controls toolbar">'+select('autoSell',[[-1,'Auto-sell off'],...[0,1,2,3].map((n):[number,string]=>[n,'Sell '+itemRanks[n]+' and lower'])],s.autoSell,'Auto-sell threshold')+btn('Sell filtered unlocked gear','bulk','quiet',!visible.some(i=>!i.locked&&!equipped(s,i.id)))+'</div>'+
- '<div class="split"><div><div class="collection">'+(visible.slice(v.page*12,v.page*12+12).map(j=>'<button class="char item '+(i?.id===j.id?'selected':'')+'" data-action="item:'+j.id+'" style="--tone:'+itemColors[j.rank]+'"><i class="item-icon">'+slotIcon(bases[j.base].slot)+'</i><span><strong>'+esc(itemName(j))+'</strong><small>'+slots[bases[j.base].slot]+' · Lv. '+j.level+(j.locked?' · Locked':'')+(equipped(s,j.id)?' · Worn':'')+'</small></span></button>').join('')||message('No gear matches. Equipment drops during adventure.'))+'</div>'+listPage(v,visible.length,12)+'</div><div class="details">'+
- (i&&base?'<div class="subject" style="--tone:'+itemColors[i.rank]+'"><i class="item-icon">'+slotIcon(base.slot)+'</i><div><div class="tagrow">'+pill(itemRanks[i.rank],itemColors[i.rank])+pill(slots[base.slot])+'</div><h3>'+esc(itemName(i))+'</h3><p>Level '+i.level+(base.role?' · '+base.role:'')+(base.two?' · Two-handed':'')+' · Found at stage '+num(i.found)+(i.exceptional?' · Exceptional roll':'')+'</p></div></div>'+
+ return header+'<div class="inventory-tools'+(v.itemFocus?' inspecting':'')+'">'+filters(v,['Equipped','Locked',...itemRanks,...slots])+
+ '<div class="controls toolbar">'+select('autoSell',[[-1,'Auto-sell off'],...[0,1,2,3].map((n):[number,string]=>[n,'Sell '+itemRanks[n]+' and lower'])],s.autoSell,'Auto-sell threshold')+btn('Sell filtered unlocked gear','bulk','quiet',!visible.some(i=>!i.locked&&!equipped(s,i.id)))+'</div></div>'+
+ '<div class="split inventory-layout'+(v.itemFocus?' inspecting':'')+'"><div class="gear-list"><div class="collection">'+(visible.slice(v.page*12,v.page*12+12).map(j=>'<button class="char item '+(i?.id===j.id?'selected':'')+'" data-action="item:'+j.id+'" style="--tone:'+itemColors[j.rank]+'">'+itemPortrait(j.base,j.rank)+'<span><strong>'+esc(itemName(j))+'</strong><small>'+slots[bases[j.base].slot]+' · Lv. '+j.level+(j.locked?' · Locked':'')+(equipped(s,j.id)?' · Worn':'')+'</small></span></button>').join('')||message('No gear matches. Equipment drops during adventure.'))+'</div>'+listPage(v,visible.length,12)+'</div><div class="details inventory-detail">'+
+ btn('‹ Back to gear','itemList','quiet item-back')+(i&&base?'<div class="subject" style="--tone:'+itemColors[i.rank]+'">'+itemPortrait(i.base,i.rank)+'<div><div class="tagrow">'+pill(itemRanks[i.rank],itemColors[i.rank])+pill(slots[base.slot])+'</div><h3>'+esc(itemName(i))+'</h3><p>Level '+i.level+(base.role?' · '+base.role:'')+(base.two?' · Two-handed':'')+' · Found at stage '+num(i.found)+(i.exceptional?' · Exceptional roll':'')+'</p></div></div>'+
  '<div class="controls">'+select('gearHero',Object.keys(s.hero).map(id=>[+id,heroes[+id].name]),hero,'Equipment recipient')+btn(owner===String(hero)?'Unequip':'Equip / transfer',owner===String(hero)?'unequip:'+hero+':'+base.slot:'equip:'+hero+':'+i.id,'gold',owner!==String(hero)&&!canEquip(s,hero,i))+btn(i.locked?'Unlock':'Lock','lock:'+i.id,'quiet')+btn('Sell · '+sellValue(i),'sell:'+i.id,'quiet',i.locked||!!owner)+'</div>'+
  (owner?'<p class="muted">Worn by '+esc(heroes[+owner].name)+'</p>':'')+
  section('Rolled properties',rolls(i)+(i.set===null?'':'<p>'+esc(sets[i.set])+' · set bonuses at 2 and 4 pieces</p>')+(i.unique===null?'':'<p><strong>'+esc(uniques[i.unique].name)+'</strong> · On '+uniques[i.unique].condition+'. '+skillText(uniques[i.unique].effect)+'</p>'))+
  (i.sockets.length?section('Sockets',i.sockets.map((gem,n)=>'<div class="controls"><span>Socket '+(n+1)+'</span>'+select('gem:'+i.id+':'+n,[[-1,'Empty'],...gemNames.map((g,id):[number,string]=>[id,g+' · '+s.gems[id]+' in bag'])],gem??-1,'Socket gem')+'</div>').join('')):'')+
  (compare&&compare.id!==i.id?section('Currently worn · '+esc(itemName(compare)),rolls(compare)):''):message('Select an item to compare its properties.'))+
- section('Saved loadouts',s.loadouts.map((l,index)=>'<div class="controls"><strong>'+esc(l.name)+'</strong>'+btn('Apply','loadout:'+index,'quiet')+btn('Remove','deleteLoadout:'+index,'micro')+'</div>').join('')||'<p class="muted">Save a hero’s current equipment from the Heroes panel.</p>')+
- section('Loot history',s.history.slice(0,8).map(h=>'<p>'+esc(h)+'</p>').join('')||'<p class="muted">No recent gear drops.</p>')+'</div></div>';
+ '</div></div>';
 }
 function summonPanel(s:Save){
  return hgroup('THE ASTRAL CIRCLE','Summon','Spend crystals earned in combat, through achievements, and from guild assignments.')+
@@ -173,7 +186,7 @@ export function renderPanel(s:Save,v:View){
 }
 export function settings(s:Save,v:View){
  const range=(key:'shake'|'music'|'sfx',name:string)=>'<label class="slider"><span>'+name+'</span><input type="range" min="0" max="1" step=".05" value="'+s.settings[key]+'" data-setting="'+key+'"></label>';
- return hgroup('EVERFALL','Settings','Game build 0.9.0 · specification 3.0')+
+ return hgroup('EVERFALL','Settings','Game build 0.9.1 · specification 3.0')+
  section('Display & sound','<div class="controls"><label>Effects density '+select('quality',[[0,'Low'],[1,'Medium'],[2,'High']],s.settings.quality,'Effects quality')+'</label></div>'+range('shake','Screen shake')+range('music','Music volume')+range('sfx','Effects volume'))+
  section('Save profile','<p>'+esc(v.email||'Local expedition')+'</p><p class="muted">'+esc(v.sync)+'</p><div class="controls">'+(v.email?btn('Sign out','logout','quiet')+btn('Retry cloud sync','sync','quiet'):btn('Open cloud sign-in','login','gold'))+btn('Export save','export','quiet')+'</div><label class="import">Import save into this profile <input type="file" accept=".json,application/json" id="import-save"></label>');
 }

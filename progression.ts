@@ -1,6 +1,7 @@
 import { dungeons, heroes, pets, worldEvents } from './content';
 import { Battle, battleSeed, createBattle, nextStage, sampleBattle } from './combat';
-import { addLoot, gain, random, safe, work, activeRewards, equippedStats, type Save } from './save';
+import { makeItem } from './loot';
+import { collectLoot, gain, random, safe, work, activeRewards, equippedStats, type Save } from './save';
 export type Rewards={xp:number;gold:number;crystals:number;keys:number;eggs:number;items:number;kills:number;battles:number;guildGold:number;research:number};
 export const emptyRewards=():Rewards=>({xp:0,gold:0,crystals:0,keys:0,eggs:0,items:0,kills:0,battles:0,guildGold:0,research:0});
 const combine=(a:Rewards,b:Rewards)=>{for(const key of Object.keys(a) as (keyof Rewards)[])a[key]+=b[key];};
@@ -35,18 +36,24 @@ function rewards(s:Save,b:Battle,n=1,offline=false){
  }
  if(eggs>60){const remaining=eggs-60,ancient=Math.floor(remaining*(boss?.07:.016)),enchanted=Math.floor(remaining*(boss?.41:.144));s.egg[2]+=ancient;s.egg[1]+=enchanted;s.egg[0]+=remaining-ancient-enchanted;}
  r.eggs=eggs;
- const rolls=expected(Math.min(.97,(boss?.97:.51)+luck*.25))+(info.dungeon&&boss?2*n:0);
- const maxRolls=Math.min(offline?75:4,rolls);
- // Bounded item sampling retains a selection of equipment. Remaining drops pay their sale value.
- for(let i=0;i<maxRolls;i++){const iDrop=addLoot(s,level,(boss?.009:0)+(info.dungeon?.007:0)+Math.min(.011,luck*.009));if(iDrop){s.history.unshift('Found gear #'+iDrop.id+' at stage '+level);r.items++;}}
- if(rolls>maxRolls){s.loot+=rolls-maxRolls;r.gold+=(rolls-maxRolls)*Math.floor(6+level*.7);}
+ if(n===1&&!offline){
+  for(const drop of b.drops)if(collectLoot(s,drop.item,drop.source))r.items++;
+ }else{
+  const rolls=expected(Math.min(.97,(boss?.97:.51)+luck*.25))+(info.dungeon&&boss?2*n:0);
+  const maxRolls=Math.min(75,rolls);
+  for(let i=0;i<maxRolls;i++){
+   const item=makeItem(level,()=>random(s),'',(boss?.009:0)+(info.dungeon?.007:0)+Math.min(.011,luck*.009));
+   if(collectLoot(s,item,'Offline adventure'))r.items++;
+  }
+  if(rolls>maxRolls){s.loot+=rolls-maxRolls;r.gold+=(rolls-maxRolls)*Math.floor(6+level*.7);}
+ }
  if(random(s)<(boss?.68:.11))s.gems[Math.floor(random(s)*6)]++;
  if(info.event>=0&&n===1){
   s.events[info.event]+=n;
   switch(info.event){
    case 0:r.gold+=Math.floor(r.gold*3);break;
    case 1:r.crystals+=4*n;break;
-   case 2:if(addLoot(s,level,.023))r.items++;break;
+   case 2:break;
    case 3:r.keys+=n;break;
    case 4:r.gold+=180*n;s.gems[0]+=2*n;break;
    case 5:r.xp*=3;break;
@@ -74,6 +81,7 @@ export function finish(s:Save,b:Battle,record=true){
  }else if(won){
   if(s.wave===info.waves-1){
    const previous=s.best;s.best=Math.max(s.best,s.stage);s.lastFarm=s.stage;
+   if(previous<1&&s.best>=1){s.crystals++;r.crystals++;}
    if(previous<2&&s.best>=2){s.egg[0]++;r.eggs++;s.crystals+=4;r.crystals+=4;}
    if(previous<3&&s.best>=3){s.keys++;r.keys++;}
    if(previous<5&&s.best>=5){s.crystals+=5;r.crystals+=5;}
@@ -103,7 +111,7 @@ export function offline(s:Save,now:number,minimum=45){
  const effective=effectiveSeconds(elapsed);
  let remaining=effective;
  s.offlineSeconds+=elapsed;
- if(!s.dungeon){
+ if(s.party.length&&!s.dungeon){
   for(let k=0;k<12&&remaining>=5;k++){
    const b=sampleBattle(s);if(b.time>remaining)break;
    remaining-=b.time;combine(r,finish(s,b,false));

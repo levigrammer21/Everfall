@@ -1,6 +1,6 @@
 # Everfall
 
-**Build 0.9.0 · Development handoff 3.0**
+**Build 0.9.1 · Development handoff 3.0**
 
 Everfall runs as an idle fantasy RPG in the browser. This package includes both the browser build and the TypeScript source. The archive extracts into one **Everfall** folder. Inside that folder, the files are flat.
 
@@ -32,10 +32,13 @@ The local expedition and authenticated profiles are separate. To move an existin
 
 ## Play
 
+- A new expedition begins with one crystal. Summon once to field the hero you draw. Add more heroes from **Heroes → Formation & behavior**.
 - The war band fights on its own. Use **Push** to advance and **Farm** to repeat a cleared stage. Defeat in Push switches the party to Farm automatically.
 - Stage 2 guarantees a Wild Egg and four crystals. Hatch the egg in **Pets** and choose an owner. Stage 3 guarantees the first dungeon key.
 - Change formation, skill priority, equipment, companions and masteries through **Heroes**. Combat changes restart the current encounter with the new party setup.
 - Dungeon keys are spent when you enter. Completed waves and camp state persist. If you close during a fight, that wave restarts on return.
+- Toggle the **Meter** on the battlefield to compare heroes during the current or last wave. Swipe the meter sideways for more columns, or tap a hero to inspect ability damage, healing, damage sources and status uptime.
+- Enemy gear drops appear on the path and are collected on victory. **Inventory → Loot log** lists named drops and their rarities.
 - Upgrade equipment in **Inventory**. Lock gear you want to keep. The inventory stores up to 400 items, with excess drops sold or swapped for lower-quality unworn, unlocked gear.
 - A successful first online load can cache the static game for offline reopening. In your browser menu, use **Install** or **Add to Home Screen** where available. Save export is also available from Settings.
 

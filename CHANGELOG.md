@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+- New expeditions begin with one summon. Existing parties and cloud saves load normally.
+- The war band marches between adventure waves and stages, with smaller sprites, better spacing and feet aligned to the path.
+- Gear appears on the battlefield when its source falls. Rarity determines the glow and beam, with gold for Legendary. Gear is collected on victory.
+- Inventory now has illustrated Gear, Loot log and Loadouts views. The log identifies each drop and its source when recorded.
+- A live battle meter shows current and last wave stats with detailed per-hero breakdowns.
+
 ## 0.9.0
 
 - Added the first packaged Everfall build against the 3.0 development handoff.

@@ -1,5 +1,5 @@
 import { biomes, bonds, dungeons, eliteMods, enemies, heroes, pets, worldEvents, type Effect, type Element, type Skill } from './content';
-import { opposite, uniques, type GearStats } from './loot';
+import { makeItem, opposite, uniques, type GearStats, type Item } from './loot';
 import { capStage, dungeonStage, equippedItems, equippedStats, levelOf, type Metric, type Save } from './save';
 export const STEP=.05;
 type Status={left:number;power:number;owner:Unit;name:string;pet:boolean};
@@ -9,9 +9,10 @@ export type Unit={
  status:Partial<Record<Effect,Status>>;cd:number;skills:Skill[];timers:number[];gear:GearStats;tree:number[];stars:number;ai:string;priority:number[];
  boss:boolean;mod:string;owner:Unit|null;life:number;fallen:boolean;special:number;passives:Skill[];passTimers:number[];bone:number;
 };
-export type Cue={kind:'hit'|'cast'|'heal'|'death'|'spawn'|'miss';x:number;y:number;fromX:number;fromY:number;element:Element;name:string;effect:Effect;value:number;critical:boolean;side:0|1;id:string};
+export type Cue={kind:'hit'|'cast'|'heal'|'death'|'spawn'|'miss';x:number;y:number;fromX:number;fromY:number;element:Element;name:string;effect:Effect;value:number;critical:boolean;side:0|1;id:string;fromId:string};
 export type Encounter={stage:number;biome:number;wave:number;waves:number;dungeon:boolean;boss:boolean;event:number;name:string};
-const emptyMetric=():Metric=>({damage:0,pet:0,bonus:0,heal:0,overheal:0,shield:0,prevent:0,crits:0,misses:0,attacks:0,casts:0,deaths:0,bySkill:{},uptime:{}});
+export type GroundDrop={item:Item;x:number;y:number;enemy:string;source:string};
+const emptyMetric=():Metric=>({taken:0,received:0,absorbed:0,kills:0,incoming:{},healsBySkill:{},damage:0,pet:0,bonus:0,heal:0,overheal:0,shield:0,prevent:0,crits:0,misses:0,attacks:0,casts:0,deaths:0,bySkill:{},uptime:{}});
 const biomeEffects:Effect[]=['root','burn','freeze','blind','poison','summon','chain','bleed','reflect','fear'];
 const bossShapes=['tree','dragon','spider','reaper','frog','skeleton','brute','rock','knight','dragon'];
 const beneficial:Effect[]=['heal','shield','guard','haste','regen','reflect','revive','evade','cleanse','summon'];
@@ -41,22 +42,23 @@ export function createBattle(s:Save,seed:number){
    speed:Math.max(.21,h.speed/(1+(g.speed??0))),reach:(h.role==='Guard'||h.role==='Striker'?.092:.245)-(p.ai==='Aggressive'?.017:0),crit:Math.min(.82,.078+(g.crit??0)),skills:h.skills.slice(0,3),timers:[1.1+slot*.23,3+slot*.45,6+slot*.47],
    gear:g,tree:p.tree,stars:p.stars,ai:p.ai,priority:p.priority,passives,passTimers:passives.map(()=>0)});
  });
- const count=info.boss?(info.dungeon?3:2):info.stage===1?2:Math.min(5,2+Math.floor((info.wave+info.stage%4)/2));
+ const training=s.party.length===1&&!info.dungeon&&info.stage<=3;
+ const count=training?1:info.boss?(info.dungeon?3:2):info.stage===1?2:Math.min(5,2+Math.floor((info.wave+info.stage%4)/2));
  const scale=stageScale(info.stage)*(info.dungeon?1.16:1);
  const foes=Array.from({length:count},(_,i)=>{
   const local=info.stage===1?i:(info.stage*3+info.wave*3+i*2+Math.floor(rng()*3))%10;
   const e=enemies[info.biome*10+local],boss=info.boss&&i===0,rare=info.event>=0&&i===0;
   const modifierRoll=rng();
   const mod=boss||info.stage<3?'':info.dungeon||modifierRoll<.13?eliteMods[Math.floor(rng()*eliteMods.length)]:modifierRoll<.15?'Rare':modifierRoll<.23?'Champion':'';
-  const max=(boss?545:rare?190:info.stage===1?112:139)*scale*e.hp*(mod?1.23:1);
+  const max=(boss?545:rare?190:training?29+info.stage*10:info.stage===1?112:139)*scale*e.hp*(mod?1.23:1);
   const d=info.dungeon&&s.dungeon?dungeons[s.dungeon.id]:null;
   const x=.76+i*.055,y=(i%3)*.102;
   const fx=boss?(d?.effect??biomeEffects[info.biome]):e.effect;
   return unit({id:'e'+i,enemy:e.id,name:boss?info.name:rare?worldEvents[info.event]:e.name,shape:boss?(d?.shape??bossShapes[info.biome]):rare?['goblin','wizard','chest','knight','horse','candle','dragon'][info.event]??e.shape:e.shape,hue:e.hue,element:e.element,x,y,oldX:x,oldY:y,side:1,hp:max,max,
-   atk:(boss?32:info.stage===1?10:16)*scale*e.atk*(mod?1.13:1),armor:(boss?16:5)+(mod==='Armored'?26:0)+Math.log1p(info.stage)*3,speed:mod==='Frenzied'?1:1.68+i*.11,reach:i%3===2?.165:.078,
+   atk:(boss?32:training?3+info.stage:info.stage===1?10:16)*scale*e.atk*(mod?1.13:1),armor:(boss?16:5)+(mod==='Armored'?26:0)+Math.log1p(info.stage)*3,speed:mod==='Frenzied'?1:1.68+i*.11,reach:i%3===2?.165:.078,
    boss,mod,shield:mod==='Shielded'?max*.28:0,skills:[{name:boss?'Cataclysm':mod==='Summoning'?'Call Reinforcements':e.name+' Assault',effect:mod==='Summoning'?'summon':mod==='Elemental'?'chain':fx,power:boss?1.25:.87,cool:boss?6.2:7.2}],timers:[boss?3.8:4.5+i*.82]});
  });
- return new Battle(s,info,[...players,...foes],rng);
+ return new Battle(s,info,[...players,...foes],rng,prng(seed^0xa5207ec5));
 }
 export function prng(seed:number){return ()=>{seed=(seed+0x6d2b79f5)>>>0;let t=seed;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;};}
 export const matchup=(element:Element,target:Element)=>opposite[target]===element?1.23:element===target?.83:1;
@@ -65,15 +67,30 @@ const alive=(u:Unit)=>u.hp>0;
 const dist=(a:Unit,b:Unit)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y)*.18;
 export class Battle{
  time=0;result:0|1|-1=0;kills:number[]=[];details:Record<string,Metric>={};sources:Record<string,number>={};enemyUptime:Record<string,number>={};cues:Cue[]=[];log:string[]=[];
+ drops:GroundDrop[]=[];private lootLuck:number;private dropTarget:string|null=null;
  petTimers=new Map<number,number>();linkTimers=new Map<number,number>();bondTimers=new Map<string,number>();serial=0;revived=new Set<string>();units:Unit[];
- constructor(readonly save:Save,readonly info:Encounter,units:Unit[],readonly rng:()=>number){this.units=units;for(const u of units)if(u.hero!==null){this.details[u.id]=emptyMetric();if(u.pet!==null)this.details[u.id].petId=u.pet;}}
+ constructor(readonly save:Save,readonly info:Encounter,units:Unit[],readonly rng:()=>number,readonly lootRng:()=>number){
+  this.units=units;
+  this.lootLuck=units.reduce((sum,u)=>sum+(u.gear.loot??0)+(u.pet===0?.06:u.pet===24?.1:0),0);
+  const foes=units.filter(u=>u.enemy!==null);
+  const chance=Math.min(.97,(info.boss?.97:.51)+this.lootLuck*.25);
+  if(foes.length&&this.lootRng()<chance)this.dropTarget=(foes.find(u=>u.boss)??foes[Math.floor(this.lootRng()*foes.length)]).id;
+  for(const u of units)if(u.hero!==null){this.details[u.id]=emptyMetric();if(u.pet!==null)this.details[u.id].petId=u.pet;}
+ }
+ drop(v:Unit){
+  const count=Number(v.id===this.dropTarget)+(v.boss&&this.info.dungeon?2:0)+(this.info.event===2&&v.id==='e0'?1:0);
+  for(let i=0;i<count;i++){
+   const bonus=(this.info.boss?.009:0)+(this.info.dungeon?.007:0)+Math.min(.011,this.lootLuck*.009)+(this.info.event===2&&v.id==='e0'?.014:0);
+   this.drops.push({item:makeItem(this.info.stage,this.lootRng,'',bonus),x:v.x,y:v.y,enemy:v.id,source:v.name});
+  }
+ }
  allies(u:Unit){return this.units.filter(v=>v.side===u.side&&alive(v));}
  foes(u:Unit){return this.units.filter(v=>v.side!==u.side&&alive(v)).sort((a,b)=>dist(u,a)-dist(u,b));}
  metric(u:Unit){return this.details[(u.owner??u).id];}
  say(s:string){if(this.log.length===60)this.log.shift();this.log.push(s);}
  emit(kind:Cue['kind'],u:Unit,v:Unit,name:string,effect:Effect,value=0,critical=false,element=u.element){
   if(this.cues.length>110)this.cues.shift();
-  this.cues.push({kind,x:v.x,y:v.y,fromX:u.x,fromY:u.y,element,name,effect,value,critical,side:u.side,id:v.id});
+  this.cues.push({kind,x:v.x,y:v.y,fromX:u.x,fromY:u.y,element,name,effect,value,critical,side:u.side,id:v.id,fromId:u.id});
  }
  trigger(u:Unit,event:Skill['trigger'],target?:Unit){
   if(!alive(u))return;
@@ -91,14 +108,17 @@ export class Battle{
   const used=Math.min(value,v.shield);v.shield-=used;value-=used;
   const vm=this.metric(v);if(vm)vm.prevent+=Math.max(0,pre-value);
   const actual=Math.min(v.hp,value);v.hp-=actual;
+  if(vm){vm.taken=(vm.taken??0)+actual;vm.absorbed=(vm.absorbed??0)+used;
+   const incoming=vm.incoming??={};const label=u.name+' · '+name;incoming[label]=(incoming[label]??0)+actual;
+  }
   if(v.side===0)this.sources[u.name+' · '+name]=(this.sources[u.name+' · '+name]??0)+actual;
   const m=this.metric(u);if(m){m.damage+=actual;if(pet)m.pet+=actual;if(bonus)m.bonus+=actual;m.bySkill[name]=(m.bySkill[name]??0)+actual;if(crit)m.crits++;}
   this.emit('hit',u,v,name,effect,actual,crit,element);
   if(v.hp<=0){
    const phoenix=v.pet===25&&!this.revived.has(v.id);
-   if(phoenix){this.revived.add(v.id);v.hp=v.max*.38;this.emit('heal',v,v,'Phoenix Rebirth','revive',v.hp,false,'fire');return actual;}
+   if(phoenix){this.revived.add(v.id);v.hp=v.max*.38;if(vm){vm.received=(vm.received??0)+v.hp;vm.heal+=v.hp;}this.emit('heal',v,v,'Phoenix Rebirth','revive',v.hp,false,'fire');return actual;}
    v.fallen=true;this.emit('death',u,v,name,effect,actual,crit,element);this.say(v.name+' fell.');
-   if(vm)vm.deaths++;if(v.enemy!==null)this.kills.push(v.enemy);
+   if(vm)vm.deaths++;if(v.enemy!==null){this.kills.push(v.enemy);this.drop(v);if(m)m.kills=(m.kills??0)+1;}
    if(react&&v.mod==='Explosive')for(const foe of this.foes(v).slice(0,3))this.damage(v,foe,v.atk*.7,'Death burst','burst',false,false,false);
    if(u.hero===0||u.hero===1){u.bone=Math.min(16,u.bone+1);u.atk*=1+(u.hero===0?.028:.034);if(u.hero===0){u.max*=1.035;u.hp=Math.min(u.max,u.hp+u.max*.09);}}
    if(react){this.trigger(u,'kill',this.foes(u)[0]);if(u.pet===28)this.apply(u,this.foes(u)[0],'Little Death · Soul Chain','chain',.42,true,false,'void',true);}
@@ -108,14 +128,14 @@ export class Battle{
    if(v.hero===40&&actual>v.max*.13&&(this.linkTimers.get(400)??0)<=this.time){this.linkTimers.set(400,this.time+9);this.apply(v,u,'Slime Split','summon',.65,false,false);}
    if(v.status.reflect&&alive(u))this.damage(v,u,actual*v.status.reflect.power,'Reflection','reflect',false,false,false);
    if(v.tree.includes(5)&&this.rng()<.14)this.damage(v,u,v.atk*.65,'Mastery Counter','strike',false,false,false);
-   if(v.hp/v.max<.3&&v.special===0&&(v.tree.includes(7)||v.tree.includes(11))){v.special=1;if(v.tree.includes(7))v.shield+=v.max*.23;if(v.tree.includes(11))this.heal(v,v,v.max*.25,'Second Wind');}
+   if(v.hp/v.max<.3&&v.special===0&&(v.tree.includes(7)||v.tree.includes(11))){v.special=1;if(v.tree.includes(7)){v.shield+=v.max*.23;if(vm)vm.shield+=v.max*.23;}if(v.tree.includes(11))this.heal(v,v,v.max*.25,'Second Wind');}
   }
   return actual;
  }
  heal(u:Unit,v:Unit,value:number,name:string,pet=false){
   if(!alive(v))return;
-  const delta=Math.min(value,v.max-v.hp);v.hp+=delta;
-  const m=this.metric(u);if(m){m.heal+=delta;m.overheal+=value-delta;if(pet)m.bySkill[name+' healing']=(m.bySkill[name+' healing']??0)+delta;}
+  const delta=Math.min(value,v.max-v.hp);v.hp+=delta;const target=this.metric(v);if(target)target.received=(target.received??0)+delta;
+  const m=this.metric(u);if(m){m.heal+=delta;m.overheal+=value-delta;const skills=m.healsBySkill??={};if(delta>0){const label=pet?name+' · pet':name;skills[label]=(skills[label]??0)+delta;}}
   if(delta>.05)this.emit('heal',u,v,name,'heal',delta,false,'life');
  }
  status(u:Unit,v:Unit,effect:Effect,power:number,left:number,name:string,pet:boolean){
@@ -143,7 +163,7 @@ export class Battle{
    case 'shield':for(const t of (u.boss?[u]:allies.slice(0,power>1.3?3:2))){const n=Math.min(t.max*.48,amp*1.08*(1+(u.gear.shield??0)));const before=t.shield;t.shield=Math.min(t.max*.68,t.shield+n);if(m)m.shield+=t.shield-before;}break;
    case 'guard':debuff(u,'guard',Math.min(.7,.2+power*.15),4.2);break;
    case 'regen':debuff(ally,'regen',amp*.18,5);break;
-   case 'revive':{const t=this.units.find(a=>a.side===u.side&&!a.owner&&!alive(a)&&!this.revived.has(a.id));if(t){this.revived.add(t.id);t.hp=t.max*.31;t.fallen=false;}else healing(ally,amp*.5);break;}
+   case 'revive':{const t=this.units.find(a=>a.side===u.side&&!a.owner&&!alive(a)&&!this.revived.has(a.id));if(t){this.revived.add(t.id);t.hp=t.max*.31;t.fallen=false;const target=this.metric(t);if(target)target.received=(target.received??0)+t.hp;if(m)m.heal+=t.hp;this.emit('heal',u,t,name,'revive',t.hp,false,element);}else healing(ally,amp*.5);break;}
    case 'haste':debuff(u,'haste',Math.min(.62,.22+power*.13),4);if(pet)u.timers=u.timers.map(t=>Math.max(0,t-.42*power));break;
    case 'evade':debuff(u,'evade',Math.min(.72,.21+power*.18),4);break;
    case 'reflect':debuff(u,'reflect',Math.min(1,.24+power*.25),4.5);break;
