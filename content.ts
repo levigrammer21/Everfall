@@ -58,6 +58,7 @@ const heroRows:Raw[] = [
 ['Dusty','Support','steel','Dust Storm:blind','Grit Cloud:weaken','Spinning Dust:chain','Dust Settles:evade','Eye Grit:mark','ghost'],
 ['Worm','Striker','venom','Burrow Ambush:burst','Earth Coil:root','Sinkhole:pull','Burrow Escape:evade','Deep Bite:bleed','worm']
 ];
+const passiveOverrides:Record<number,[Skill['trigger'],Skill['trigger']]>= {0:['kill','low'],1:['kill','crit'],2:['low','hurt'],3:['crit','hurt'],4:['hurt','low'],6:['hurt','low'],10:['hurt','hurt'],12:['kill','crit'],14:['crit','kill'],17:['cast','kill'],20:['crit','cast'],23:['hurt','kill'],27:['cast','crit'],33:['kill','crit'],39:['low','hurt'],40:['hurt','low'],45:['hurt','low'],46:['hurt','hurt']};
 const passiveTriggers = ['kill','hurt','crit','low','cast'] as const;
 export const heroes = heroRows.map(([name,role,element,...row],id) => {
  const rarity = id<5?4:id<14?3:id<27?2:id<39?1:0;
@@ -65,7 +66,7 @@ export const heroes = heroRows.map(([name,role,element,...row],id) => {
  const [hp,atk,armor,speed] = ({Guard:[155,16,16,1.45],Striker:[101,24,5,1.05],Caster:[86,26,3,1.4],Support:[106,17,8,1.48]})[role];
  const skills = row.slice(0,5).map((entry,i):Skill => {
   const [name,effect] = entry.split(':');
-  return {name,effect:effect.trim() as Effect,power:i<3?1.04+(id%9)*.045+i*.16:.44+(id%7)*.045,cool:i<3?3.7+(id%6)*.36+i*2.35:4+(id%5)*.5,trigger:i>=3?(id===39&&i===3?'low':passiveTriggers[(id+i)%5]):undefined};
+  return {name,effect:effect.trim() as Effect,power:i<3?1.04+(id%9)*.045+i*.16:.44+(id%7)*.045,cool:i<3?3.7+(id%6)*.36+i*2.35:4+(id%5)*.5,trigger:i>=3?(passiveOverrides[id]?.[i-3]??passiveTriggers[(id+i)%5]):undefined};
  });
  return {id,name,role,element,rarity,skills,shape:row[5],hp:Math.round(hp*mod+(id*5)%16),atk:atk*mod+(id*3)%7*.52,armor:armor*mod+id%4,speed:speed+(id%6)*.035,growth:.065+(id%8)*.004,hue:({39:43,43:283,44:104,45:171,46:22} as Record<number,number>)[id]??(id*49+28)%360};
 });
@@ -75,7 +76,7 @@ const petRows: [string,Element,Effect,Effect,string][] = [
 ['Tiny Reaper','void','execute','mark','reaper'],['Ember Fox','fire','burn','burst','rat'],['Crystal Turtle','ice','shield','guard','snail'],['Storm Owl','storm','chain','mark','bird'],['Goblin Bomb','fire','burst','burn','goblin'],['Fairy Queen','life','heal','cleanse','bee'],['Void Worm','void','weaken','pull','worm'],
 ['Baby Dragon','fire','burn','burst','dragon'],['Golden Goose','holy','shield','mark','bird'],['Phoenix Chick','fire','burn','revive','bird'],['Nightmare','void','fear','leech','horse'],['Mini Golem','steel','shield','guard','rock'],['Little Death','void','execute','chain','reaper'],['Chaos Egg','storm','burst','cleanse','egg']
 ];
-export const pets=petRows.map(([name,element,effect,link,shape],id)=>({id,name,element,effect,link,shape,rarity:id<8?0:id<16?1:id<23?2:id<28?3:4,power:.62+id%8*.055,cool:3.4+id%7*.35,hue:(id*71+18)%360}));
+export const pets=petRows.map(([name,element,effect,link,shape],id)=>({id,name,element,effect,link,shape,rarity:id<8?0:id<16?1:id<23?2:id<28?3:4,power:.62+id%8*.055,attack:8+(id%8)*.9+(id>=16?3:0),cool:3.4+id%7*.35,hue:(id*71+18)%360}));
 export const biomes = [
 ['Whispering Forest',0x575489,0xc4d0fd,'Briarheart'],['Ashen Highlands',0x833b44,0xff8e58,'Cinder Maw'],['Frostfall Expanse',0x406b9b,0xc5f5ff,'Ice Widow'],['Sunscorched Wastes',0x9b6248,0xffce80,'The Sun Eater'],['Rotwood Marsh',0x365947,0xbbdf81,'Mire Mother'],['Forgotten Catacombs',0x4b3d68,0xdfb9ff,'Ossuary King'],['Stormbreak Peaks',0x384888,0x82caff,'The Thunder Ram'],['Crimson Wastes',0x852e52,0xff8e99,'Blood Colossus'],['Shattered Kingdom',0x4e6178,0xf2d192,'The Broken Crown'],['Astral Abyss',0x5c3d93,0xe3aeff,'Star Devourer']
 ] as const;

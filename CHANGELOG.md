@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0
+
+- Added distinct hero signatures, companion instincts, tactical skill combos, and named mastery capstones. Hero and pet ascensions add signature effects at their milestone ranks.
+- Added illustrated scenery for all nine biomes beyond Whispering Forest and for all four dungeons. Characters have pixel-art pose frames for idle, travel, attacks, specials, hits, and death.
+- Added four dungeon boss patterns with low-health follow-ups, themed boss loot, and mid-wave checkpoint recovery.
+- Added choices for the Wandering Merchant, Lost Caravan, and Secret Shrine and three upgrade tracks in Guild Headquarters.
+- Added a build journal and stage farming records. Adjusted late-game loot overflow sales, gold, keys, and offline encounter timing.
+- Added distinct boss, summon, and hatch audio cues. Existing rosters, parties, equipment, and save profiles load into the release.
+
+
 ## 0.9.1
 
 - New expeditions begin with one summon. Existing parties and cloud saves load normally.

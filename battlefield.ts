@@ -4,6 +4,10 @@ import { biomes, elements } from './content';
 import { Battle, type Cue, type Unit } from './combat';
 import { itemColors, itemName, itemRanks } from './loot';
 import forest from './whispering-forest.webp';
+import { poses, poseSheet, type Pose } from './sprite-poses';
+const scenery=import.meta.glob('./biome-*.webp',{eager:true,query:'?url',import:'default'}) as Record<string,string>;
+const vaults=import.meta.glob('./dungeon-*.webp',{eager:true,query:'?url',import:'default'}) as Record<string,string>;
+const paintUrls=Object.fromEntries([...Object.entries(scenery),...Object.entries(vaults)].map(([path,url])=>[path.slice(2,-5),url]));
 type GraphicsSettings={quality:number;shake:number};
 type Actor={sprite:Phaser.GameObjects.Sprite;pet?:Phaser.GameObjects.Sprite;last:number;hit:number;wind:number;dead:number};
 type Point={x:number;y:number};
@@ -13,16 +17,27 @@ const clamp=(n:number,min:number,max:number)=>Math.min(max,Math.max(min,n));
 export class Battlefield extends Phaser.Scene{
  battle:Battle|null=null;interp=0;paused=false;settings:GraphicsSettings={quality:2,shake:1};actors=new Map<string,Actor>();pool:Phaser.GameObjects.Sprite[]=[];numbers:Phaser.GameObjects.Text[]=[];
  effects:Fx[]=[];lines!:Phaser.GameObjects.Graphics;floor!:Phaser.GameObjects.Graphics;air!:Phaser.GameObjects.Graphics;
- background:Phaser.GameObjects.TileSprite[]=[];pictures:Phaser.GameObjects.Image[]=[];biome=-1;clock=0;frameShake=0;intro=0;ready=false;recent:Fx[]=[];onCue:(c:Cue)=>void=()=>{};
+ background:Phaser.GameObjects.TileSprite[]=[];pictures:Phaser.GameObjects.Image[]=[];foreground:Phaser.GameObjects.Image[]=[];biome=-1;clock=0;frameShake=0;intro=0;ready=false;recent:Fx[]=[];onCue:(c:Cue)=>void=()=>{};
+ private atlasSource!:ReturnType<typeof actorAtlas>;
+ private poseKeys=new Set<string>();
+ private currentPaint='';
  private walkers=new Map<string,Point>();private march=1;private road=0;private roadStart=0;private shift=0;private fromBiome:number|null=null;private visibleDrops:DropFx[]=[];private readDrops=0;private lootInk!:Phaser.GameObjects.Graphics;
  constructor(){super('Everfall');}
+ private paintRequested=new Set<string>();
  preload(){this.load.image('forest-painted',forest);}
+ private requestPaint(key:string){
+  if(!paintUrls[key]||this.paintRequested.has(key))return;
+  this.paintRequested.add(key);
+  this.load.image(key,paintUrls[key]);
+  if(!this.load.isLoading())this.load.start();
+ }
  create(){
-  const {canvas,frames}=actorAtlas(),atlas=this.textures.addCanvas('actors',canvas)!;
+  this.atlasSource=actorAtlas();const {canvas,frames}=this.atlasSource,atlas=this.textures.addCanvas('actors',canvas)!;
   for(const [name,{x,y}] of Object.entries(frames))atlas.add(name,0,x,y,32,32);
   atlas.setFilter(Phaser.Textures.FilterMode.NEAREST);
   for(let i=0;i<4;i++)this.background.push(this.add.tileSprite(0,0,1,1,'__DEFAULT').setOrigin(0,0).setDepth(i));
   this.pictures=Array.from({length:3},()=>this.add.image(0,0,'forest-painted').setDepth(5).setOrigin(.5,.5));
+  this.foreground=Array.from({length:3},()=>this.add.image(0,0,'forest-painted').setDepth(6).setOrigin(.5,.5));
   this.lootInk=this.add.graphics().setDepth(61);
   this.floor=this.add.graphics().setDepth(7);this.air=this.add.graphics().setDepth(8);this.lines=this.add.graphics().setDepth(70);
   for(let i=0;i<18;i++)this.numbers.push(this.add.text(0,0,'',{fontFamily:'Arial',fontStyle:'bold',fontSize:'16px',stroke:'#120d22',strokeThickness:3}).setOrigin(.5).setDepth(80).setVisible(false));
@@ -56,30 +71,58 @@ export class Battlefield extends Phaser.Scene{
   this.march=clamp(progress,0,1);
   this.road=this.roadStart+this.shift*this.march;
  }
- ground(b:number,h:number){return h*(b===0?.88:127/154);}
+ ground(_biome:number,h:number){return h*.88;}
  drawBiome(b:number,w:number,h:number){
-  if(this.biome!==b){
+  const dungeon=this.battle?.info.dungeonId;
+  const key=dungeon===undefined?b===0?'forest-painted':'biome-'+b:'dungeon-'+dungeon;
+  this.requestPaint(key);
+  const stage=this.battle?.info.stage??1;
+  if(!this.battle?.info.dungeon&&stage%10>=8)this.requestPaint('biome-'+((Math.floor((stage-1)/10)+1)%10));
+  const painted=this.textures.exists(key),texture=painted?key:'fallback';
+  if(this.currentPaint!==texture){
+   this.currentPaint=texture;
+   if(painted)[...this.pictures,...this.foreground].forEach(picture=>picture.setTexture(key));
+  }
+  [...this.pictures,...this.foreground].forEach(picture=>picture.setVisible(painted));
+  if(painted){
+   const image=this.textures.get(key).getSourceImage();
+   const ground=this.ground(b,h),path=key==='forest-painted'?.86:dungeon===undefined?.777:[.704,.704,.686,.687][dungeon];
+   const sy=Math.max(ground/(image.height*path),(h-ground)/(image.height*(1-path)));
+   const sx=Math.max(sy,w/image.width);
+   const span=image.width*sx,travel=this.road*w;
+   const layer=(pictures:Phaser.GameObjects.Image[],distance:number,crop=false)=>{
+    const center=Math.floor((distance+span/2)/span);
+    pictures.forEach((picture,i)=>{
+     const tile=center+i-1;
+     picture.setPosition(w*.5+tile*span-distance,ground-(path-.5)*image.height*sy).setScale(sx,sy).setFlipX(tile%2!==0);
+     if(crop){const y=Math.floor(image.height*path)+2;picture.setCrop(0,y,image.width,image.height-y);}
+    });
+   };
+   layer(this.pictures,travel*.78);
+   layer(this.foreground,travel,true);
+  }else if(this.biome!==b){
    this.biome=b;
    for(let i=0;i<4;i++){
-    const key='back'+b+'-'+i;if(!this.textures.exists(key))this.textures.addCanvas(key,landscape(b,i))?.setFilter(Phaser.Textures.FilterMode.NEAREST);
-    this.background[i].setTexture(key);
+    const fallback='back'+b+'-'+i;if(!this.textures.exists(fallback))this.textures.addCanvas(fallback,landscape(b,i))?.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this.background[i].setTexture(fallback);
    }
   }
-  const painted=b===0&&this.textures.exists('forest-painted');
-  this.pictures.forEach(picture=>picture.setVisible(painted));
-  if(painted){
-   const image=this.textures.get('forest-painted').getSourceImage();
-   const ground=this.ground(b,h),path=.86;
-   const scale=Math.max(w/image.width,ground/(image.height*path),(h-ground)/(image.height*(1-path)));
-   const span=image.width*scale;
-   const travel=this.road*w;
-   const center=Math.floor((travel+span/2)/span);
-   this.pictures.forEach((picture,i)=>{
-    const tile=center+i-1;
-    picture.setPosition(w*.5+tile*span-travel,ground-(path-.5)*image.height*scale).setScale(scale).setFlipX(tile%2!==0);
-   });
-  }
   this.background.forEach((a,i)=>a.setVisible(!painted).setSize(w,h).setTileScale(h/154,h/154).setTilePosition(this.road*w*(.14+i*.285),0));
+ }
+ private pose(sprite:Phaser.GameObjects.Sprite,key:string,pose:Pose){
+  const atlasKey='motion-'+key;
+  if(!this.poseKeys.has(key)){
+   const frame=this.atlasSource.frames[key];
+   if(!frame)return;
+   const canvas=poseSheet(this.atlasSource.canvas,frame.x,frame.y,key);
+   const atlas=this.textures.addCanvas(atlasKey,canvas);
+   if(!atlas)return;
+   poses.forEach((pose,i)=>atlas.add(pose,0,i*40,0,40,40));
+   atlas.setFilter(Phaser.Textures.FilterMode.NEAREST);
+   this.poseKeys.add(key);
+  }
+  if(sprite.texture.key!==atlasKey)sprite.setTexture(atlasKey,pose).setOrigin(.5,.84);
+  else if(sprite.frame.name!==pose)sprite.setFrame(pose);
  }
  private actorPosition(u:Unit,w:number,h:number):Point{
   const currentX=Phaser.Math.Linear(u.oldX,u.x,this.interp);
@@ -147,10 +190,11 @@ export class Battlefield extends Phaser.Scene{
  }
  image(key:string){
   const object=this.pool.pop()??this.add.sprite(0,0,'actors',key).setOrigin(.5,.93);
-  return object.setTexture('actors',key).setVisible(true).setAlpha(1).setScale(1).setAngle(0).clearTint();
+  return object.setTexture('actors',key).setOrigin(.5,.93).setVisible(true).setAlpha(1).setScale(1).setAngle(0).clearTint();
  }
  frameFor(u:Unit){
   if(u.hero!==null)return 'h'+u.hero;
+  if(u.boss){const info=this.battle!.info;return 'b'+(info.event===7?14:info.dungeonId===undefined?info.biome:10+info.dungeonId);}
   if(!u.boss&&!u.owner&&u.enemy!==null&&this.battle!.info.event<0)return 'e'+u.enemy;
   return 's'+u.shape+(this.battle!.info.biome%10);
  }
@@ -168,6 +212,10 @@ export class Battlefield extends Phaser.Scene{
    const slash=a.wind>0?Math.sin(a.wind*11)*6*direction:0;
    const stagger=a.hit>0?a.hit*16*-direction:0;
    const visible=a.dead<.68;
+   const phase=Math.floor(this.clock*9)%3;
+   const pose:Pose=u.hp<=0?poses[11+Math.min(2,Math.floor(a.dead*6))]:a.hit>.1?'hit':a.wind>0?(a.wind>.13?'special0':'special1'):a.last>this.clock?poses[5+Math.min(2,Math.floor((a.last-this.clock)*12))]:walking?poses[2+phase]:poses[Math.floor(this.clock*3)%2];
+   this.pose(a.sprite,this.frameFor(u),pose);
+   if(a.pet)this.pose(a.pet,'p'+u.pet,a.wind>0?'special1':walking?poses[2+phase]:poses[Math.floor(this.clock*4)%2]);
    a.sprite.setPosition(Math.round(x+slash+stagger),Math.round(y-Math.abs(bob)+a.dead*12-(u.boss?Math.max(0,this.intro-.56)*44:0))).setDepth(16+y*.09).setFlipX(u.side===1)
     .setScale(size*(1+Math.abs(bob)*.008),size*(1-Math.abs(bob)*.011)).setAngle(visible?a.dead*60*-direction:0).setAlpha(visible?(1-a.dead*1.35)*(u.boss?1-Math.min(.85,this.intro*.72):1):0);
    if(a.hit>0.09&&u.hp>0)a.sprite.setTintFill(0xfff1d4);else if(u.status.freeze)a.sprite.setTint(0x97dbff);else a.sprite.clearTint();
@@ -187,6 +235,7 @@ export class Battlefield extends Phaser.Scene{
  cue(c:Cue){
   const a=this.actors.get(c.id);if(a&&c.kind==='hit'&&c.value>=2)a.hit=.17;
   if(c.kind==='cast'){const caster=this.actors.get(c.fromId);if(caster)caster.wind=.26;}
+  if(c.kind==='hit'&&c.name==='Basic attack'){const attacker=this.actors.get(c.fromId);if(attacker)attacker.last=this.clock+.24;}
   if(c.kind==='hit'&&c.value<2)return;
   if(c.kind==='hit'&&c.critical||c.kind==='death'&&this.battle?.info.boss)this.frameShake=Math.max(this.frameShake,c.kind==='death'?6:2.4);
   this.onCue(c);

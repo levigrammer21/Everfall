@@ -116,8 +116,36 @@ function sprite(c:CanvasRenderingContext2D,d:Design,key:string){
  }
  // A small accent changes with each character's identity and palette.
  if(d.id%5===0&&['knight','witch','wizard','brute','skeleton'].includes(shape))p(glow,13,21,2,2);
+ if(key.startsWith('b')){
+  const motif=d.id%7;
+  if(motif===0)for(const x of [4,10,22,28]){p(dark,x,5,3,15);p(glow,x+1,8,1,7);}
+  if(motif===1)poly(glow,5,23,9,13,8,19,13,12,12,22,20,24,13,27);
+  if(motif===2)for(const [x,y] of [[4,14],[10,5],[20,4],[26,12]])poly(glow,x,y+7,x+3,y,x+5,y+4,x+4,y+9);
+  if(motif===3){p('#e7b66d',7,7,19,3);p(pale,11,4,11,1);p(glow,17,7,3,3);}
+  if(motif===4)for(const [x,y] of [[5,21],[25,21],[8,11],[24,7]]){p(mid,x,y,4,4);p(glow,x+1,y+1,2,2);}
+  if(motif===5)for(const [x,y] of [[5,7],[24,8],[11,20],[26,23]]){block(pale,x,y,4,3);p(ink,x+1,y+1,2,1);}
+  if(motif===6)poly(glow,10,3,20,3,15,10,21,10,11,21,13,13,8,13);
+ }
  if(key.startsWith('h')){
   switch(d.id){
+   case 9:poly('#857350',13,8,15,2,21,1,19,4,18,8);p('#fff0a3',21,15,2,2);p('#c88646',8,25,5,2);break;
+   case 10:p('#b66583',12,17,13,2);p('#e99d9e',21,18,2,6);p('#e2f7ff',4,8,2,3);break;
+   case 18:p('#f4d5a4',7,14,3,13);p('#f9b282',22,19,3,8);p('#fcf4cb',15,4,3,4);break;
+   case 19:p('#896747',26,10,2,18);poly('#b7afb0',22,8,26,4,31,8,27,14,23,12);p(pale,25,7,4,1);break;
+   case 20:poly('#e594cb',9,8,5,2,8,1,14,7,20,2,24,3,22,8);p('#f3c686',6,2,2,2);p('#f3c686',23,3,2,2);break;
+   case 24:p('#f9d9a2',11,11,3,2);p('#f9d9a2',19,8,3,2);p('#f9d9a2',22,13,2,2);p('#92d684',5,23,3,3);break;
+   case 26:poly('#77828e',3,9,6,5,9,12,12,13,8,21,3,24);p('#a9bec1',4,10,2,6);p('#79b4e6',24,13,3,1);break;
+   case 30:poly('#c985ca',10,7,14,2,17,1,17,4,15,7,25,8,24,10,8,10);p('#bc88a9',22,17,4,2);break;
+   case 35:p('#c9e1ef',8,15,3,1);p('#8294b8',5,19,4,1);p('#99afd4',3,24,3,1);p('#e0f4ec',20,10,3,1);break;
+   case 37:poly('#242137',3,15,7,9,12,10,10,20,5,24);p('#9994d3',6,13,2,5);p('#eac397',25,18,4,2);break;
+   case 39:p('#d9c898',25,19,5,2);p('#f4e2ad',28,17,2,3);p('#ae806a',11,22,4,2);break;
+   case 40:p('#9bed93',7,20,3,2);p('#44704c',17,26,6,2);p('#c2f8a9',23,16,2,2);break;
+   case 41:p('#d2b583',11,7,7,2);p('#ad8b54',12,9,5,2);p('#8acc90',4,17,4,2);break;
+   case 42:poly('#a5f7ff',14,2,21,2,17,8,23,8,13,19,15,11,10,11);p('#f0fff9',17,5,2,3);break;
+   case 44:block('#658a55',24,18,5,7);p('#c6f789',25,19,2,2);p('#d69c79',24,17,5,1);break;
+   case 47:p('#f0d8bc',24,20,2,3);p('#e4b3a9',11,6,3,3);p('#7e98a3',8,28,3,2);break;
+   case 48:p('#d6ba92',4,12,3,2);p('#9d7c8c',8,21,3,2);p('#e2c49a',22,6,3,2);p('#bd9f91',27,17,3,2);break;
+   case 49:p('#cc8c7d',9,24,5,2);p('#f0ab88',16,18,4,2);p('#985864',21,10,4,2);break;
    case 0:for(const [x,y] of [[7,4],[3,13],[27,2],[28,19],[5,21]]){p(ink,x,y,4,4);p(pale,x+1,y+1,2,2);}p(glow,16,5,5,1);break;
    case 1:p(glow,28,3,3,1);p(light,22,27,4,2);break;
    case 2:for(const [x,y] of [[8,3],[13,1],[21,2],[25,6]]){p(dark,x,y,5,4);p('#83b489',x+1,y,3,2);}break;
@@ -153,6 +181,13 @@ function sprite(c:CanvasRenderingContext2D,d:Design,key:string){
   }
  }
  if(key.startsWith('p')){
+  const traits:[number,number,number,number][]=[
+   [16,8,5,2],[8,13,4,3],[9,13,5,2],[24,12,4,4],[13,11,6,2],[16,13,4,2],[11,8,4,2],[13,19,5,3],
+   [18,7,4,3],[9,20,4,2],[10,21,3,2],[11,16,4,3],[20,16,5,2],[19,10,4,3],[11,14,4,2],[13,9,4,2],
+   [24,7,3,4],[5,18,5,2],[10,19,4,2],[18,11,4,2],[17,8,4,3],[6,11,3,2],[11,22,4,2],[23,7,4,2],
+   [13,8,4,2],[20,10,5,2],[11,14,5,2],[12,16,4,3],[25,11,3,3],[17,13,4,3]
+  ];
+  const [x,y,w,h]=traits[d.id];p(dark,x-1,y+1,w+2,h);p(glow,x,y,w,h);p(pale,x,y,Math.max(1,w-2),1);
   if(d.id===0||d.id===24){poly(d.id===0?'#ffcb68':'#ffe99a',18,11,23,11,30,13,29,15,22,15,19,14);p('#fff0c2',17,9,2,2);}
   if(d.id===9){poly('#f3f2a1',4,23,8,19,12,18,9,22,13,21,8,25);p(glow,16,5,2,3);}
   if(d.id===14){poly(dark,10,8,12,2,16,7,19,6,22,3,23,10);p(glow,20,11,1,1);}
@@ -165,6 +200,9 @@ function sprite(c:CanvasRenderingContext2D,d:Design,key:string){
 export const allShapes=[...new Set([...heroes,...pets,...enemies].map(x=>x.shape).concat(['ghost','tree','rock','knight','reaper','dragon','spider','frog','skeleton','brute','goblin','horse','chest','candle','egg','wizard','rat']))];
 export function actorAtlas(){
  const list=[...heroes.map(d=>({...d,key:'h'+d.id})),...pets.map(d=>({...d,key:'p'+d.id})),...enemies.map(d=>({...d,key:'e'+d.id})),...allShapes.flatMap((shape,i)=>Array.from({length:10},(_,n)=>({shape,id:i,hue:(n*36+i*11)%360,element:(['steel','fire','ice','storm','venom','holy','void','life'] as const)[n%8],key:'s'+shape+n})))];
+ const bosses=['tree','dragon','spider','reaper','frog','skeleton','brute','rock','knight','dragon','rock','witch','dragon','reaper','dragon'];
+ const bossElements=['life','fire','ice','holy','venom','void','storm','fire','steel','void','void','fire','ice','storm','void'] as const;
+ bosses.forEach((shape,id)=>list.push({shape,id,hue:[143,23,203,39,102,268,221,350,214,291,182,20,208,283,306][id],element:bossElements[id],key:'b'+id}));
  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=Math.ceil((list.length+bases.length)/16)*32;const ctx=canvas.getContext('2d')!;
  const frames:Record<string,{x:number;y:number}>={};
  list.forEach((d,i)=>{const x=i%16*32,y=Math.floor(i/16)*32;frames[d.key]={x,y};ctx.save();ctx.translate(x,y);sprite(ctx,d,d.key);ctx.restore();});

@@ -1,3 +1,5 @@
+import { grantForgeGems, jobFactor, type BuildStats, type FarmingStats, type WorldOffer } from './expedition';
+import type { DungeonCheckpoint } from './combat';
 import { heroes,pets,starters,dungeons,guildJobs,worldEvents } from './content';
 import { bases, itemName, rollAffix, gearStats, slots, type Item, type RNG } from './loot';
 export const MAX=1e100;
@@ -13,7 +15,7 @@ export type Save={
  gold:number;crystals:number;keys:number;universal:number;serial:number;seed:number;egg:number[];gems:number[];hero:Record<number,HeroProgress>;pet:Record<number,Progress>;party:number[];sanctuary:number[];
  items:Item[];pity:number[];summons:number;hatches:number;summonLog:{id:number;dupe:boolean}[];hatchLog:{id:number;dupe:boolean;tier:number}[];history:(LootEntry|string)[];
  research:number;guildXp:number;guildBank:number[];jobTime:number;infirmary:number;discover:Record<string,number>;scout:number;events:number[];
- dungeon:{id:number;tier:number;wave:number;camp:boolean}|null; dungeonWins:number; loot:number;kills:number;wins:number;losses:number;seconds:number;totalGold:number;totalXP:number;
+ offers:WorldOffer[];guildRanks:number[];farmHistory:Record<string,FarmingStats>;buildHistory:Record<string,BuildStats>;checkpoint?:DungeonCheckpoint|null;dungeon:{id:number;tier:number;wave:number;camp:boolean}|null; dungeonWins:number; loot:number;kills:number;wins:number;losses:number;seconds:number;totalGold:number;totalXP:number;
  offlineSeconds:number; records:BattleRecord[]; claimed:string[];title:string;
  loadouts:{name:string;hero:number;gear:(string|null)[]}[]; autoSell:number;settings:{speed:number;quality:number;shake:number;music:number;sfx:number};
 };
@@ -22,7 +24,7 @@ const heroProgress=():HeroProgress=>({...progress(),pet:null,gear:Array(10).fill
 export const newSave=(now=Date.now(),seed=Math.floor(Math.random()*2**32)):Save=>({
  version:3,updated:now,stage:1,best:0,mode:'Push',wave:0,lastFarm:1,gold:40,crystals:1,keys:0,universal:0,serial:0,seed:seed>>>0,egg:[0,0,0],gems:[0,0,0,0,0,0],
  hero:{},pet:{},party:[],sanctuary:[],items:[],pity:[0,0,0],summons:0,hatches:0,summonLog:[],hatchLog:[],history:[],research:0,guildXp:0,guildBank:Array(9).fill(0),jobTime:0,infirmary:0,discover:{},scout:0,events:Array(8).fill(0),
- dungeon:null,dungeonWins:0,loot:0,kills:0,wins:0,losses:0,seconds:0,totalGold:0,totalXP:0,offlineSeconds:0,records:[],claimed:[],title:'Wanderer',loadouts:[],autoSell:-1,settings:{speed:1,quality:2,shake:1,music:.24,sfx:.55}
+ offers:[],guildRanks:[0,0,0],farmHistory:{},buildHistory:{},checkpoint:null,dungeon:null,dungeonWins:0,loot:0,kills:0,wins:0,losses:0,seconds:0,totalGold:0,totalXP:0,offlineSeconds:0,records:[],claimed:[],title:'Wanderer',loadouts:[],autoSell:-1,settings:{speed:1,quality:2,shake:1,music:.24,sfx:.55}
 });
 export function restore(raw:unknown):Save{
  if(!raw||typeof raw!=='object')return newSave();
@@ -54,6 +56,7 @@ export function restore(raw:unknown):Save{
  }
  s.sanctuary=[...new Set(s.sanctuary)].filter(id=>s.pet[id]&&!reserved.has(id)).slice(0,3);
  if(s.dungeon&&!dungeons[s.dungeon.id])s.dungeon=null;
+ if(!s.dungeon||s.dungeon.camp||!Array.isArray(s.checkpoint?.units))s.checkpoint=null;
  s.stage=Math.min(capStage,Math.max(1,s.stage));return s;
 }
 export function random(s:Save):number{
@@ -148,7 +151,7 @@ export function enchant(s:Save,id:string,roll:number){
 export const dungeonStage=(id:number,tier:number)=>Math.max(3,dungeons[id].level)+Math.floor((tier-1)**1.7*3.2);
 export function startDungeon(s:Save,id:number,tier:number){
  if(s.dungeon||!dungeons[id]||!Number.isInteger(tier)||tier<1||tier>20||s.keys<1||s.best<dungeonStage(id,tier))return false;
- s.keys--;s.dungeon={id,tier,wave:0,camp:false};return true;
+ s.keys--;s.checkpoint=null;s.dungeon={id,tier,wave:0,camp:false};return true;
 }
 export function assignSanctuary(s:Save,p:number){
  if(s.sanctuary.includes(p)){s.sanctuary=s.sanctuary.filter(id=>id!==p);return true;}
@@ -160,13 +163,13 @@ export function work(s:Save,seconds:number){
  for(const [id,h] of Object.entries(s.hero)){
   if(h.job===null||s.party.includes(+id))continue;
   const role=heroes[+id].role;const mult=1+levelOf(h.xp)*.015+([0,3,1,2,2,1,2,0][h.job]===['Guard','Striker','Caster','Support'].indexOf(role)?.35:0);
-  s.guildBank[h.job]+=seconds*mult;
-  if(h.job===0)gain(h,seconds*.23*mult);
+  s.guildBank[h.job]+=seconds*mult*jobFactor(s,h.job,+id);
+  if(h.job===0)gain(h,seconds*.23*mult*jobFactor(s,0,+id));
  }
- for(const id of s.sanctuary)gain(s.pet[id],seconds*.18,true);
+ for(const id of s.sanctuary)gain(s.pet[id],seconds*.18*jobFactor(s,8),true);
  const claim=(job:number,period:number)=>{const n=Math.floor(s.guildBank[job]/period);s.guildBank[job]-=n*period;return n;};
- const defense=claim(7,6200);s.keys+=defense;s.gold=safe(s.gold+8*claim(1,55)+60*defense);s.crystals+=claim(6,12200);
- s.research+=claim(2,145);s.gems[0]+=claim(3,1200);s.infirmary+=claim(4,180);s.scout+=claim(5,110);
+ const defense=claim(7,6600);s.keys+=defense;s.gold=safe(s.gold+8*claim(1,55)+60*defense);s.crystals+=claim(6,12200);
+ s.research+=claim(2,145);grantForgeGems(s,claim(3,1200));s.infirmary+=claim(4,180);s.scout+=claim(5,110);
  s.guildXp+=seconds*Object.values(s.hero).filter(h=>h.job!==null).length;s.jobTime+=seconds;
 }
 export const equippedItems=(s:Save,id:number)=>s.hero[id].gear.flatMap(id=>{const i=s.items.find(x=>x.id===id);return i?[i]:[];});
@@ -175,7 +178,7 @@ export const masteryPoints=(h:HeroProgress)=>Math.floor(levelOf(h.xp)/3)+h.stars
 export const masteryNames=['Force','Volley','Catalyst','Pet Link','Resolve','Counter','Mend','Last Stand','Tempo','Echo','Siphon','Second Wind'];
 export const masteryDescriptions=['Deal 8% more attack damage.','Strikes splash onto a second enemy.','Damage-over-time effects last one extra second.','Pets fire an extra link effect on critical hits.','Gain 12 armor.','Taking damage can trigger a counterstrike.','Healing restores 20% more health.','Gain a shield once per fight at low health.','Skills recover 13% faster.','Third skills have a chance to cast twice.','Basic attacks restore 5% of damage as health.','Heal once per fight after taking a severe hit.'];
 export function train(s:Save,id:number,n:number){
- const h=s.hero[id];if(!h||n<0||n>=masteryNames.length||h.tree.includes(n)||masteryPoints(h)<=0||(n%4!==0&&!h.tree.includes(n-1)))return false;
+ const h=s.hero[id];if(!h||n<0||n>=masteryNames.length||h.tree.includes(n)||n%4===3&&h.tree.some(node=>node%4===3)||masteryPoints(h)<=0||(n%4!==0&&!h.tree.includes(n-1)))return false;
  h.tree.push(n);return true;
 }
 export const achievements=Array.from({length:15},(_,group)=>{

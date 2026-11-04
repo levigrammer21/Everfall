@@ -25,5 +25,14 @@ export class GameAudio{
   if(c.kind==='heal')this.tone(520,.26,this.sfx*.055,'sine',811);
   if(c.kind==='cast')this.tone(c.element==='storm'?780:c.element==='fire'?120:c.element==='void'?205:365,.2,this.sfx*.05,'triangle',c.element==='storm'?180:550);
  }
+ boss(){
+  this.tone(82,.73,this.sfx*.14,'triangle',43);
+  this.tone(165,.42,this.sfx*.075,'sine',113);
+ }
+ ritual(hatch:boolean,rare:boolean){
+  if(hatch){this.tone(296,.13,this.sfx*.105,'triangle',166);this.tone(590,.38,this.sfx*.072,'sine',1020);}
+  else{this.tone(220,.38,this.sfx*.083,'triangle',478);this.tone(490,.64,this.sfx*.070,'sine',820);}
+  if(rare)this.tone(760,.59,this.sfx*.062,'sine',1530);
+ }
  confirm(rare=false){this.tone(rare?525:310,.25,this.sfx*.11,'triangle',rare?1050:410);if(rare)this.tone(780,.43,this.sfx*.073,'sine',1570);}
 }

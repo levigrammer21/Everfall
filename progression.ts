@@ -1,3 +1,5 @@
+import { heroMastery } from './identity';
+import { buildKey, buildLabel, isWorldOffer } from './expedition';
 import { dungeons, heroes, pets, worldEvents } from './content';
 import { Battle, battleSeed, createBattle, nextStage, sampleBattle } from './combat';
 import { makeItem } from './loot';
@@ -27,8 +29,8 @@ function rewards(s:Save,b:Battle,n=1,offline=false){
   return Math.max(0,Math.min(n,Math.round(mean+(random(s)+random(s)+random(s)+random(s)-2)*spread*1.73)));
  };
  r.xp=Math.ceil((8+level*1.36)*(boss?2.5:1))*n;
- r.gold=Math.floor((13+Math.sqrt(level)*7.5)*(boss?3:1)*(info.dungeon?1.4:1)*goldMult)*n;
- r.crystals=expected(info.dungeon&&boss?1:boss?.058:.0028);r.keys=info.dungeon?0:expected(boss?.06:.0022);
+ r.gold=Math.floor((12+Math.sqrt(level)*5)*(boss?3:1)*(info.dungeon?1.4:1)*goldMult)*n;
+ r.crystals=expected(info.dungeon&&boss?1:boss?.056:.0025);r.keys=info.dungeon?0:expected(boss?.040:.0012);
  r.kills=n*b.kills.length;r.battles=n;
  const eggs=expected(info.dungeon?(boss?.24:.014):(boss?.023:.00023));
  for(let i=0;i<Math.min(eggs,60);i++){
@@ -45,18 +47,20 @@ function rewards(s:Save,b:Battle,n=1,offline=false){
    const item=makeItem(level,()=>random(s),'',(boss?.009:0)+(info.dungeon?.007:0)+Math.min(.011,luck*.009));
    if(collectLoot(s,item,'Offline adventure'))r.items++;
   }
-  if(rolls>maxRolls){s.loot+=rolls-maxRolls;r.gold+=(rolls-maxRolls)*Math.floor(6+level*.7);}
+  if(rolls>maxRolls){s.loot+=rolls-maxRolls;r.gold+=(rolls-maxRolls)*Math.floor(3+Math.sqrt(level)*1.5);}
  }
  if(random(s)<(boss?.68:.11))s.gems[Math.floor(random(s)*6)]++;
  if(info.event>=0&&n===1){
   s.events[info.event]+=n;
+  const queued=isWorldOffer(info.event)&&s.offers.length<5;
+  if(queued&&isWorldOffer(info.event))s.offers.push({event:info.event,stage:level});
   switch(info.event){
    case 0:r.gold+=Math.floor(r.gold*3);break;
-   case 1:r.crystals+=4*n;break;
+   case 1:if(!queued)r.crystals+=2;break;
    case 2:break;
    case 3:r.keys+=n;break;
-   case 4:r.gold+=180*n;s.gems[0]+=2*n;break;
-   case 5:r.xp*=3;break;
+   case 4:if(!queued){r.gold+=40+level;s.gems[0]++;}break;
+   case 5:if(!queued)r.xp*=2;break;
    case 6:s.egg[1]+=n;r.eggs+=n;break;
    case 7:s.egg[2]+=n;r.eggs+=n;r.crystals+=8*n;break;
   }
@@ -65,16 +69,37 @@ function rewards(s:Save,b:Battle,n=1,offline=false){
  s.history=s.history.slice(0,40);
  credit(s,r);return r;
 }
+function recordTrends(s:Save,b:Battle,r:Rewards,n:number,foreground:boolean){
+ const key=b.info.dungeon?'d:'+b.info.name+':'+b.info.stage:'a:'+b.info.stage;
+ const farm=s.farmHistory[key]??={name:b.info.name,stage:b.info.stage,waves:0,wins:0,time:0,gold:0,xp:0,items:0};
+ farm.waves+=n;farm.wins+=b.result===1?n:0;farm.time+=b.time*n;farm.gold+=r.gold;farm.xp+=r.xp;farm.items+=r.items;
+ const refresh=<T>(entries:Record<string,T>,id:string,data:T,limit:number)=>{
+  delete entries[id];entries[id]=data;
+  const keys=Object.keys(entries);
+  if(keys.length>limit)delete entries[keys[0]];
+ };
+ refresh(s.farmHistory,key,farm,30);
+ if(!foreground)return;
+ for(const u of b.units){
+  if(u.hero===null||!s.hero[u.hero])continue;
+  const id=u.hero,m=b.details[u.id],build=buildKey(s,id);
+  const row=s.buildHistory[build]??={name:buildLabel(id,u.pet),hero:id,pet:u.pet,profile:[u.ai,s.hero[id].gear.filter(Boolean).length+' gear pieces',...u.tree.filter(n=>n%4===3).map(n=>heroMastery(id,n).path)].join(' · '),waves:0,time:0,damage:0,petDamage:0,heal:0,taken:0,mitigated:0};
+  row.waves++;row.time+=b.time;row.damage+=m.damage;row.petDamage+=m.pet;row.heal+=m.heal;row.taken+=m.taken??0;row.mitigated+=m.prevent;
+  refresh(s.buildHistory,build,row,48);
+ }
+}
 const settled=new WeakSet<Battle>();
 export function finish(s:Save,b:Battle,record=true){
  if(!b.result||settled.has(b))return emptyRewards();
  settled.add(b);
  const won=b.result===1,{info}=b;
  const r=won?rewards(s,b):emptyRewards();
+ recordTrends(s,b,r,1,record);
  if(s.infirmary>0)s.infirmary--;
  if(won)s.wins++;else{s.losses++;for(const id of b.kills)s.discover[id]=(s.discover[id]??0)+1;s.kills+=b.kills.length;}
  s.seconds=safe(s.seconds+b.time);
  if(info.dungeon&&s.dungeon){
+  s.checkpoint=null;
   if(!won)s.dungeon=null;
   else if(s.dungeon.wave===dungeons[s.dungeon.id].waves-1){s.dungeon=null;s.dungeonWins++;}
   else{s.dungeon.wave++;s.dungeon.camp=true;}
@@ -113,8 +138,8 @@ export function offline(s:Save,now:number,minimum=45){
  s.offlineSeconds+=elapsed;
  if(s.party.length&&!s.dungeon){
   for(let k=0;k<12&&remaining>=5;k++){
-   const b=sampleBattle(s);if(b.time>remaining)break;
-   remaining-=b.time;combine(r,finish(s,b,false));
+   const b=sampleBattle(s);const time=Math.max(4,b.time)+2;if(time>remaining)break;
+   remaining-=time;combine(r,finish(s,b,false));
   }
   if(remaining>=4){
    // Longer absences repeat proven wins. Sample each encounter using the current party and equipment.
@@ -123,9 +148,9 @@ export function offline(s:Save,now:number,minimum=45){
    const samples=Array.from({length:3},(_,wave)=>{s.wave=wave;let seed=battleSeed(s);if(seed%100000<1600)seed+=1600;return sampleBattle(s,seed);});
    s.stage=backup.stage;s.wave=backup.wave;
    if(samples.every(b=>b.result===1)){
-    const duration=samples.reduce((sum,b)=>sum+b.time,0),cycles=Math.floor(remaining/duration);
+    const duration=samples.reduce((sum,b)=>sum+Math.max(4,b.time)+2,0),cycles=Math.floor(remaining/duration);
     if(cycles>0){
-     for(const b of samples){combine(r,rewards(s,b,cycles,true));s.seconds=safe(s.seconds+cycles*b.time);s.wins+=cycles;}
+     for(const b of samples){const earned=rewards(s,b,cycles,true);combine(r,earned);recordTrends(s,b,earned,cycles,false);s.seconds=safe(s.seconds+cycles*b.time);s.wins+=cycles;}
     }
    }
   }

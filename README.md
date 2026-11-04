@@ -1,10 +1,14 @@
 # Everfall
 
-**Build 0.9.1 · Development handoff 3.0**
+**Build 1.0.0 · Development handoff 3.0**
 
 Everfall runs as an idle fantasy RPG in the browser. This package includes both the browser build and the TypeScript source. The archive extracts into one **Everfall** folder. Inside that folder, the files are flat.
 
-## Upload from your phone
+## Update an existing 0.9.1 installation
+
+The 1.0.0 changed-files ZIP assumes the 0.9.1 files are already in your repository. Extract the ZIP and upload the files inside its **Everfall** folder to the same repository root. Commit them together. The patch includes the prebuilt entry and new bundles, so you can upload from your phone. After Pages publishes the commit, reopen the game and check for **1.0.0** in Settings or the footer.
+
+## First upload from your phone
 
 1. Extract the ZIP in your Files app and open the **Everfall** folder.
 2. Open your GitHub repository in your browser. In **Add file → Upload files**, choose the files **inside** Everfall so that **index.html** is directly in the repository root. Commit the upload to your publishing branch. Use the desktop site view on your phone if GitHub hides the upload controls.
@@ -35,9 +39,12 @@ The local expedition and authenticated profiles are separate. To move an existin
 - A new expedition begins with one crystal. Summon once to field the hero you draw. Add more heroes from **Heroes → Formation & behavior**.
 - The war band fights on its own. Use **Push** to advance and **Farm** to repeat a cleared stage. Defeat in Push switches the party to Farm automatically.
 - Stage 2 guarantees a Wild Egg and four crystals. Hatch the egg in **Pets** and choose an owner. Stage 3 guarantees the first dungeon key.
+- Each hero has a signature and tactical skill combos. Inspect companion instincts in **Pets**. Hero signatures gain follow-up effects at six and ten stars.
 - Change formation, skill priority, equipment, companions and masteries through **Heroes**. Combat changes restart the current encounter with the new party setup.
-- Dungeon keys are spent when you enter. Completed waves and camp state persist. If you close during a fight, that wave restarts on return.
+- Dungeon keys are spent when you enter. Completed waves, camp state, and the latest mid-wave autosave persist. Reopening an active dungeon resumes its latest saved wave state.
 - Toggle the **Meter** on the battlefield to compare heroes during the current or last wave. Swipe the meter sideways for more columns, or tap a hero to inspect ability damage, healing, damage sources and status uptime.
+- **Stats → Build journal** groups recent waves by the hero’s gear, mastery, companion, and tactics. **Stats → Farming** keeps stage records across sessions.
+- **Adventure** holds choices for rare encounters. **Guild** lets you buy upgrades for jobs and pet training.
 - Enemy gear drops appear on the path and are collected on victory. **Inventory → Loot log** lists named drops and their rarities.
 - Upgrade equipment in **Inventory**. Lock gear you want to keep. The inventory stores up to 400 items, with excess drops sold or swapped for lower-quality unworn, unlocked gear.
 - A successful first online load can cache the static game for offline reopening. In your browser menu, use **Install** or **Add to Home Screen** where available. Save export is also available from Settings.

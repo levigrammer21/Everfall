@@ -1,8 +1,9 @@
+import { resolveOffer, upgradeGuild } from './expedition';
 import './style.css';
 import { GameAudio } from './audio';
 import { launchBattlefield } from './battlefield';
 import { meterMarkup } from './battle-meter';
-import { STEP, type Battle } from './combat';
+import { STEP, dungeonKey, resumeDungeonBattle, type Battle } from './combat';
 import { colors, dungeons, heroes, pets, rarities } from './content';
 import { authWatch, emailRegister, emailSignIn, google, loadCloud, logout, resetPassword, SaveConflict, writeCloud } from './firebase-client';
 import { bases, itemColors, itemName, itemRanks, slots } from './loot';
@@ -28,7 +29,13 @@ function localRead(id?:string):Local|null{
 }
 function localWrite(stamp=true){
  if(!s)return;
- if(stamp)s.updated=Date.now();
+ if(stamp){
+  s.updated=Date.now();
+  if(s.dungeon&&!s.dungeon.camp&&battle?.save===s&&battle.info.dungeon&&battle.info.wave===s.dungeon.wave&&!battle.result&&battle.time>0){
+   const key=dungeonKey(s);
+   if(s.checkpoint?.key!==key||s.checkpoint.time!==battle.time){s.checkpoint=battle.checkpoint(key);dirty=true;mutation++;}
+  }
+ }
  try{localStorage.setItem(localKey(uid||undefined),JSON.stringify({state:s,revision,dirty}));}
  catch{view.sync='Device storage unavailable';toast('Could not write a device save.');}
 }
@@ -54,7 +61,7 @@ async function cloudWrite(){
 function showAuth(message=''){
  loginShown=true;
  if(s){renderOverlay();return;}
- root.innerHTML='<main class="auth"><section class="auth-card"><p class="eyebrow">THE ENDLESS ROAD</p><div class="auth-emblem">'+icon('Summon')+'</div><h1>EVERFALL</h1><p class="auth-copy">Gather your war band and venture into the dark.</p><div id="auth-box">'+authForm(message)+'</div><p class="auth-build">BUILD 0.9.1</p></section></main>';
+ root.innerHTML='<main class="auth"><section class="auth-card"><p class="eyebrow">THE ENDLESS ROAD</p><div class="auth-emblem">'+icon('Summon')+'</div><h1>EVERFALL</h1><p class="auth-copy">Gather your war band and venture into the dark.</p><div id="auth-box">'+authForm(message)+'</div><p class="auth-build">BUILD 1.0.0</p></section></main>';
 }
 function authForm(message=''){
  return '<div class="auth-actions">'+btn('Continue with Google','google','gold')+'<form id="email-form"><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><div class="controls"><button class="btn bright" type="submit">Sign in</button><button class="btn quiet" type="submit" data-register="yes">Create account</button></div></form>'+btn('Reset password','resetPassword','micro')+
@@ -71,7 +78,7 @@ function enter(save:Save,account='',rev=0,needsSync=false){
  const summary=offline(s,Date.now());if(summary.elapsed){changed();offlinePopup(summary.elapsed,summary.r);}else localWrite(false);
  view.hero=s.party[0]??39;view.pet=Number(Object.keys(s.pet)[0]??0);
  if(!visual)mount();
- resetBattle();
+ resetBattle(false,true);
  renderOverlay();hud(true);
 }
 async function accountChanged(account:User|null){
@@ -112,16 +119,18 @@ async function reconnect(force=false){
 }
 function mount(){
  root.innerHTML='<main class="game"><header class="topbar"><button class="brand" data-action="close" aria-label="Return to battle"><span class="crest">'+icon('Summon')+'</span><span>EVERFALL<small>THE ENDLESS ROAD</small></span></button><div class="wallet"><span title="Gold">'+icon('gold')+'<b id="gold"></b></span><span title="Summoning crystals">'+icon('crystal')+'<b id="crystals"></b></span><span title="Dungeon keys">'+icon('key')+'<b id="keys"></b></span></div><button class="icon-btn" data-action="settings" aria-label="Settings">'+icon('gear')+'</button></header>'+
- '<section class="field" aria-label="Animated battlefield"><div id="scene"></div><div class="field-shade"></div><div class="field-label"><p id="field-kicker" class="eyebrow"></p><h1 id="field-name"></h1><p id="field-detail"></p></div><div class="battle-controls"><button class="mode" id="mode" data-action="mode" title="Change push or farm mode"></button><button class="icon-btn" id="pause" data-action="pause" aria-label="Pause combat">'+icon('pause')+'</button><button class="speed" id="speed" data-action="speed" aria-label="Combat speed">1×</button><button class="icon-btn live-toggle" data-action="liveMeter" id="live-toggle" aria-label="Battle meter" aria-expanded="false" title="Battle meter">'+icon('Stats')+'<span>Meter</span></button></div><aside id="live-meter" class="live-meter" aria-label="Battle meter" hidden><div class="live-bar"><strong>'+icon('Stats')+' Battle meter</strong><div><button data-action="liveWave:current" id="meter-current">Current</button><button data-action="liveWave:last" id="meter-last">Last wave</button><button data-action="liveMeter" class="live-close" aria-label="Close battle meter">'+icon('close')+'</button></div></div><div id="meter-body" class="meter-body"></div></aside><div id="field-toast" class="field-toast"></div><div id="camp" class="camp" hidden></div><div class="field-edge"></div></section>'+
- '<section class="party-strip" aria-label="Active party"><span class="party-label">WAR BAND</span><div id="party"></div><span id="party-status"></span></section><nav class="nav" aria-label="Game navigation">'+tabs.map(t=>'<button data-action="tab:'+t+'">'+icon(t)+'<span>'+t+'</span></button>').join('')+'</nav><div class="footer"><span id="save-status">LOCAL SAVE</span><span>EVERFALL · 0.9.1</span></div></main><div id="overlay" class="overlay" hidden></div><div id="modal" class="modal" hidden></div><div id="toast" class="toast" role="status" hidden></div>';
+ '<section class="field" aria-label="Animated battlefield"><div id="scene"></div><div class="field-shade"></div><div class="field-label"><p id="field-kicker" class="eyebrow"></p><h1 id="field-name"></h1><p id="field-detail"></p></div><div class="battle-controls"><button class="mode" id="mode" data-action="mode" title="Change push or farm mode"></button><button class="icon-btn" id="pause" data-action="pause" aria-label="Pause combat">'+icon('pause')+'</button><button class="speed" id="speed" data-action="speed" aria-label="Combat speed">1×</button><button class="icon-btn live-toggle" data-action="liveMeter" id="live-toggle" aria-label="Battle meter" aria-expanded="false" title="Battle meter">'+icon('Stats')+'<span>Meter</span></button></div><aside id="live-meter" class="live-meter" aria-label="Battle meter" hidden><div class="live-bar"><strong>'+icon('Stats')+' Battle meter</strong><div><button data-action="liveWave:current" id="meter-current">Current</button><button data-action="liveWave:last" id="meter-last">Last wave</button><button data-action="liveMeter" class="live-close" aria-label="Close battle meter">'+icon('close')+'</button></div></div><div id="meter-body" class="meter-body"></div></aside><div id="field-toast" class="field-toast"></div><button class="btn gold field-offer" data-action="tab:Adventure" id="world-offer" hidden>Encounter waiting</button><div id="camp" class="camp" hidden></div><div class="field-edge"></div></section>'+
+ '<section class="party-strip" aria-label="Active party"><span class="party-label">WAR BAND</span><div id="party"></div><span id="party-status"></span></section><nav class="nav" aria-label="Game navigation">'+tabs.map(t=>'<button data-action="tab:'+t+'">'+icon(t)+'<span>'+t+'</span></button>').join('')+'</nav><div class="footer"><span id="save-status">LOCAL SAVE</span><span>EVERFALL · 1.0.0</span></div></main><div id="overlay" class="overlay" hidden></div><div id="modal" class="modal" hidden></div><div id="toast" class="toast" role="status" hidden></div>';
  visual=launchBattlefield(el('scene')!);visual.scene.onCue=c=>audio.cue(c);
  hudHash='';
 }
-function resetBattle(walk=false){
+function resetBattle(walk=false,resume=false){
  if(!s||!visual)return;
- battle=makeNext(s);visual.scene.set(battle,walk);visual.scene.settings=s.settings;delay=0;acc=0;walkNext=false;
+ if(!resume)s.checkpoint=null;
+ battle=resume?resumeDungeonBattle(s):makeNext(s);visual.scene.set(battle,walk);visual.scene.settings=s.settings;delay=0;acc=0;walkNext=false;
  travelDuration=walk?Math.max(.7,1.05/Math.sqrt(s.settings.speed)):0;travel=travelDuration;
  audio.music=s.settings.music;audio.sfx=s.settings.sfx;
+ if(battle.info.boss&&battle.time===0)audio.boss();
 }
 function toast(msg:string){const node=el('toast')??el('auth-error');if(!node)return;node.textContent=msg;node.hidden=false;clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>{if(node.id==='toast')node.hidden=true;},3400);}
 function fieldToast(message:string,rank=0){
@@ -162,6 +171,7 @@ function hud(force=false){
  setText('field-kicker',(s.dungeon?'DUNGEON · TIER '+s.dungeon.tier:'STAGE '+num(battle.info.stage))+'  /  WAVE '+(battle.info.wave+1)+' OF '+battle.info.waves);
  setText('field-name',battle.info.name);
  const foe=battle.units.find(u=>u.side===1&&u.hp>0);setText('field-detail',!s.party.length?'Your expedition begins with one summon':travel>0?'On the road':foe?(foe.mod?foe.mod+' ':'')+foe.name:s.dungeon?.camp?'Party at camp':battle.result===1?'Encounter cleared':battle.result===-1?'Regrouping':'On the road');
+ const offer=el('world-offer');if(offer){offer.hidden=!s.offers.length;setText('world-offer','Encounter waiting'+(s.offers.length>1?' · '+s.offers.length:''));}
  setText('mode',s.dungeon?'Dungeon':s.mode);el('mode')?.classList.toggle('farm',s.mode==='Farm'&&!s.dungeon);setText('speed',s.settings.speed+'×');
  setText('save-status',uid?view.sync.toUpperCase():'DEVICE SAVE');
  const pause=el<HTMLButtonElement>('pause');if(pause){pause.innerHTML=icon(view.pause?'play':'pause');pause.setAttribute('aria-label',view.pause?'Resume combat':'Pause combat');}
@@ -208,7 +218,7 @@ function lootPop(title:string,entries:{id:number;dupe:boolean}[],isPet=false){
  const defs=isPet?pets:heroes,best=Math.max(...entries.map(x=>defs[x.id].rarity));
  view.pop={title,style:'reveal',body:'<div class="pull-results">'+entries.map((x,i)=>{
   const d=defs[x.id];return '<div class="pull" style="--tone:'+colors[d.rarity]+';--index:'+i+'">'+portrait((isPet?'p':'h')+x.id)+'<strong>'+esc(d.name)+'</strong><small>'+rarities[d.rarity]+' · '+(x.dupe?'Essence':isPet?'New companion':'New hero')+'</small></div>';
- }).join('')+'</div>'};audio.confirm(best>=2);
+ }).join('')+'</div>'};audio.ritual(isPet,best>=2);
 }
 const authMessage=(text:string)=>{const x=el('auth-error');if(x)x.textContent=text;};
 async function accountAction(action:string){
@@ -268,6 +278,8 @@ root.addEventListener('click',async e=>{
   case 'mode':modified=s.mode==='Push'?goFarm(s.lastFarm):goPush();if(!modified)open('Adventure');break;
   case 'push':modified=goPush();if(modified)view.tab=null;break;
   case 'farm':modified=goFarm(Number(el<HTMLInputElement>('farm-stage')?.value));if(modified)view.tab=null;break;
+  case 'worldOffer':modified=resolveOffer(s,n);break;
+  case 'guildUpgrade':modified=upgradeGuild(s,n);break;
   case 'partyAdd':modified=rebuild=setParty(s,n,s.party.length);break;
   case 'priority':{
    const order=s.hero[n].priority,j=(k+1)%order.length;[order[k],order[j]]=[order[j],order[k]];modified=rebuild=true;break;
@@ -367,13 +379,13 @@ root.addEventListener('change',async e=>{
  if(modified)changed();renderOverlay();hud();
 });
 window.addEventListener('online',()=>void reconnect());
-window.addEventListener('pagehide',()=>{if(!document.hidden)localWrite();else localWrite(false);});
+window.addEventListener('pagehide',()=>{localWrite(!document.hidden||!!s?.dungeon);});
 document.addEventListener('visibilitychange',()=>{
  if(!s)return;
  if(document.hidden){if(!hiddenAt){hiddenAt=Date.now();if(workAccum){work(s,workAccum);workAccum=0;}localWrite();void cloudWrite();}}
  else if(hiddenAt){
   const summary=offline(s,Date.now(),20);hiddenAt=0;lastFrame=performance.now();lastSimEpoch=Date.now();
-  if(summary.elapsed){changed();resetBattle();offlinePopup(summary.elapsed,summary.r);renderOverlay();}
+  if(summary.elapsed){changed();resetBattle(false,true);offlinePopup(summary.elapsed,summary.r);renderOverlay();}
  }
 });
 function loop(now:number){
@@ -381,7 +393,7 @@ function loop(now:number){
  const dt=Math.min(.12,Math.max(0,(now-lastFrame)/1000));lastFrame=now;
  if(!s||!battle||!visual||document.hidden)return;
  if(Date.now()-lastSimEpoch>90000){
-  const summary=offline(s,Date.now());if(summary.elapsed){changed();resetBattle();offlinePopup(summary.elapsed,summary.r);renderOverlay();}
+  const summary=offline(s,Date.now());if(summary.elapsed){changed();resetBattle(false,true);offlinePopup(summary.elapsed,summary.r);renderOverlay();}
  }
  lastSimEpoch=Date.now();
  workAccum+=dt;if(workAccum>=5){work(s,workAccum);workAccum=0;changed(false);}

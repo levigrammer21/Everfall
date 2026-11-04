@@ -32,7 +32,7 @@ function online(s:Save,seconds:number){
  }
  work(s,seconds);s.updated+=seconds*1000;
 }
-const s=newSave(0,31415);summon(s,1);
+const s=newSave(0,Number(process.argv[2]??31415));summon(s,1);
 function report(label:string){
  console.log(JSON.stringify({period:label,stage:s.stage,best:s.best,mode:s.mode,levels:s.party.map(h=>levelOf(s.hero[h].xp)),
   stars:s.party.map(h=>s.hero[h].stars),heroCount:Object.keys(s.hero).length,petCount:Object.keys(s.pet).length,

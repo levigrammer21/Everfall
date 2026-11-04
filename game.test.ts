@@ -163,3 +163,94 @@ test('combat meter separates HP damage, shields consumed, healing and sources',(
  b.heal(h,h,hit/2,'Bandage');assert.ok(Math.abs(m.received!-hit/2)<1e-8);assert.equal(m.heal,m.healsBySkill?.Bandage);
  b.damage(h,foe,1e5,'Finisher','strike');assert.equal(m.kills,1);
 });
+
+test('every roster member has a distinct registered signature and a visible tactical rider on each skill',async()=>{
+ const {heroProfiles,petProfiles,heroMastery,skillCombos,petPair}=await import('./identity');
+ assert.equal(heroProfiles.length,50);assert.equal(new Set(heroProfiles.map(h=>h.name)).size,50);
+ assert.equal(new Set(heroProfiles.map(h=>[h.trigger,h.test,h.effect,h.starEffect,h.finalEffect].join('/'))).size,50);
+ assert.equal(petProfiles.length,30);assert.equal(new Set(petProfiles.map(p=>p.name)).size,30);
+ for(const h of heroes){
+  assert.equal(skillCombos[h.id].length,5);
+  const s=legacySave(0,seed);s.hero[h.id]??=structuredClone(s.hero[39]);s.hero[h.id].stars=10;s.party=[h.id];
+  const b=createBattle(s,seed),u=b.units[0],foe=b.units[1],p=heroProfiles[h.id];
+  u.hp=u.max*.50;u.shield=20;foe.max=1e5;foe.hp=foe.max;
+  if(p.test==='boss')foe.boss=true;
+  if(p.test==='healthy')foe.hp=foe.max;
+  if(p.test==='weakened')foe.hp=foe.max*.30;
+  if(p.test==='debuffed')b.status(u,foe,'mark',.1,5,'Test mark',false);
+  if(p.test==='crowd'){
+   const extra=createBattle(legacySave(0,seed),seed).units.find(x=>x.side===1)!;
+   b.units.push({...extra,id:'test-extra'});
+  }
+  b.identity(u,p.trigger,foe);
+  assert.ok(b.cues.some(c=>c.name===p.name),p.name);
+  assert.ok(b.cues.some(c=>c.name===p.name+' · Ascended'),p.name);
+  assert.ok(b.cues.some(c=>c.name===p.name+' · Apex'),p.name);
+  assert.equal(heroMastery(h.id,3).title.includes(p.name),true);
+ }
+ assert.ok(petPair(42,9).power>0);
+ const s=legacySave(0,seed);s.hero[39].xp=needXP(60);
+ for(let n=0;n<7;n++)assert.ok(train(s,39,n));
+ assert.equal(train(s,39,7),false);
+});
+
+test('dungeon checkpoint resumes the same timers, health, drops and outcome as uninterrupted combat',async()=>{
+ const {dungeonKey,resumeDungeonBattle}=await import('./combat');
+ const original=legacySave(0,seed);original.best=60;original.keys=1;
+ assert.equal(startDungeon(original,1,1),true);original.dungeon!.wave=dungeons[1].waves-1;
+ for(const id of original.party)original.hero[id].xp=needXP(12);
+ const live=createBattle(original,battleSeed(original));
+ for(let i=0;i<137&&!live.result;i++)live.step();
+ assert.equal(live.result,0);
+ original.checkpoint=live.checkpoint(dungeonKey(original));
+ const restored=restore(JSON.parse(JSON.stringify(original)));
+ const resumed=resumeDungeonBattle(restored);
+ assert.equal(resumed.time,live.time);
+ assert.deepEqual(resumed.units.map(u=>u.hp),live.units.map(u=>u.hp));
+ assert.deepEqual(resumed.checkpoint(dungeonKey(restored)),JSON.parse(JSON.stringify(live.checkpoint(dungeonKey(original)))));
+ while(!live.result)live.step();
+ while(!resumed.result)resumed.step();
+ assert.equal(resumed.result,live.result);assert.equal(resumed.time,live.time);
+ assert.deepEqual(resumed.details,live.details);
+ assert.deepEqual(resumed.drops,live.drops);
+ assert.ok(live.log.some(line=>line.includes('Pyre Judgment')));
+ assert.deepEqual(finish(restored,resumed),finish(original,live));
+ assert.equal(restored.checkpoint,null);
+});
+
+test('world decisions and guild upgrades spend resources only on a valid successful action',async()=>{
+ const {resolveOffer,upgradeGuild,jobFactor}=await import('./expedition');
+ const s=legacySave(0,seed);s.offers=[{event:1,stage:10},{event:4,stage:10},{event:5,stage:10}];
+ assert.equal(resolveOffer(s,0),false);
+ assert.equal(resolveOffer(s,1),true);assert.equal(s.crystals,2);
+ assert.equal(resolveOffer(s,0),false);
+ s.keys=1;assert.equal(resolveOffer(s,0),true);assert.equal(s.keys,0);assert.equal(s.egg[1],1);
+ assert.equal(resolveOffer(s,1),true);assert.equal(s.keys,1);assert.equal(resolveOffer(s,1),false);
+ s.gold=300;assert.equal(upgradeGuild(s,0),true);assert.equal(s.guildRanks[0],1);assert.ok(jobFactor(s,0)>1);assert.equal(upgradeGuild(s,9),false);
+});
+
+test('build history groups results and distinguishes equipment and mastery changes',async()=>{
+ const {buildKey}=await import('./expedition');
+ const s=legacySave(0,seed),start=buildKey(s,39);
+ finish(s,sampleBattle(s));finish(s,sampleBattle(s));
+ assert.equal(s.buildHistory[start].waves,2);assert.equal(s.farmHistory['a:1'].wins,2);
+ s.hero[39].xp=needXP(10);assert.ok(train(s,39,0));
+ const changed=buildKey(s,39);
+ assert.notEqual(changed,start);finish(s,sampleBattle(s));
+ assert.equal(s.buildHistory[changed].waves,1);assert.equal(s.buildHistory[start].waves,2);
+ assert.equal(s.farmHistory['a:1'].waves,3);
+});
+
+test('all companions activate their conditional instinct and ascension effects',async()=>{
+ const {petProfiles}=await import('./identity');
+ for(const pet of pets){
+  const s=legacySave(0,seed),profile=petProfiles[pet.id];
+  s.pet[pet.id]={xp:needXP(20,true),stars:5,essence:0};assert.equal(assignPet(s,39,pet.id),true);
+  const b=createBattle(s,seed),u=b.units[0],foe=b.units.find(x=>x.side===1)!;
+  u.hp=u.max*.5;u.shield=20;foe.max=1e6;foe.hp=profile.test==='weakened'?foe.max*.3:foe.max;
+  if(profile.test==='debuffed')b.status(u,foe,'mark',.1,5,'Test mark',false);
+  b.identity(u,profile.trigger,foe);
+  const name=pet.name+' · '+profile.name;
+  for(const tail of ['',' · Ascended',' · Apex'])assert.ok(b.cues.some(c=>c.name===name+tail),name+tail);
+ }
+});

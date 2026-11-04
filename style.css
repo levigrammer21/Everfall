@@ -329,3 +329,11 @@ button.loot-card:hover{border-color:var(--tone)}
 .field-toast.show{animation-name:loot-notice}
 @keyframes loot-notice{10%,85%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-7px)}}
 @media(orientation:landscape) and (max-height:620px){.field-toast{top:53px}}
+.field-offer{position:absolute;z-index:5;top:clamp(92px,17vh,126px);right:clamp(9px,2.4vw,35px);min-height:30px;padding:4px 8px;font-size:.68rem}
+.field:has(.field-offer:not([hidden])) .field-toast{top:clamp(129px,24vh,165px)}
+.choice{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #47364e;padding:6px 0}
+.trend-list{display:grid;gap:5px}
+.trend-list>div{display:grid;gap:3px;padding:7px 9px;background:#21192d;border:1px solid #41314b;border-radius:7px;font-size:.72rem;color:#c9b8ce}
+.trend-list strong{color:#efcfad}
+@media(orientation:landscape) and (max-height:620px){.field-offer{top:49px}.field:has(.field-offer:not([hidden])) .field-toast{top:84px}}
+.live-meter{z-index:6}
