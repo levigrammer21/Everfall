@@ -106,16 +106,28 @@ export function setParty(s:Save,id:number,slot:number){
 }
 export const equipped=(s:Save,id:string)=>Object.values(s.hero).some(h=>h.gear.includes(id));
 export const wornBy=(s:Save,id:string)=>Object.keys(s.hero).find(h=>s.hero[+h].gear.includes(id));
-export function canEquip(s:Save,h:number,i:Item){
- const hero=s.hero[h],b=bases[i.base];if(!hero||!b||i.level>levelOf(hero.xp)||(b.role!==null&&b.role!==heroes[h].role))return false;
- const main=s.items.find(i=>i.id===hero.gear[4]);return b.slot!==5||!main||!bases[main.base].two;
+export function equipRestriction(s:Save,h:number,i:Item){
+ const hero=s.hero[h],base=bases[i.base];
+ if(!hero||!base)return 'Hero unavailable';
+ if(base.role&&base.role!==heroes[h].role)return base.role+' only';
+ if(i.level>levelOf(hero.xp))return 'Requires Lv. '+i.level;
+ const main=s.items.find(item=>item.id===hero.gear[4]);
+ return base.slot===5&&main&&bases[main.base].two?'Two-handed weapon equipped':'';
+}
+export const canEquip=(s:Save,h:number,i:Item)=>!equipRestriction(s,h,i);
+export function gearPlacement(gear:(string|null)[],i:Item){
+ const base=bases[i.base],next=gear.map(id=>id===i.id?null:id);
+ next[base.slot]=i.id;
+ if(base.two)next[5]=null;
+ return next;
 }
 export function equip(s:Save,h:number,id:string){
  const i=s.items.find(i=>i.id===id);if(!i||!canEquip(s,h,i))return false;
- const slot=bases[i.base].slot;
- for(const p of Object.values(s.hero))p.gear=p.gear.map(x=>x===id?null:x);
- if(bases[i.base].two)s.hero[h].gear[5]=null;
- s.hero[h].gear[slot]=id;return true;
+ for(const [key,p] of Object.entries(s.hero)){
+  if(+key===h)p.gear=gearPlacement(p.gear,i);
+  else if(p.gear.includes(id))p.gear=p.gear.map(worn=>worn===id?null:worn);
+ }
+ return true;
 }
 export const sellValue=(i:Item)=>5+Math.floor(i.level*(1+i.rank*.7))+i.rank*9;
 export function sell(s:Save,ids:string[]){

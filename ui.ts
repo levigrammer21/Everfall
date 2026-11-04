@@ -1,3 +1,4 @@
+import { battleScore, compareGear } from './battle-score';
 import { guildUpgrades, offerChoices, offerTitle, upgradeCost } from './expedition';
 import { heroProfiles, petProfiles, petPair, heroMastery, skillCombos } from './identity';
 import { lootHistory, achievements, activeRewards, ascensionCost, canEquip, equipped, equippedItems, levelOf, masteryDescriptions, masteryNames, masteryPoints, needXP, sellValue, wornBy, type Save } from './save';
@@ -26,8 +27,8 @@ export function portrait(key:string){
  const f=portraitSheet.frames[key];
  return f?'<i class="portrait" aria-hidden="true" style="--px:'+(-f.x*1.5)+'px;--py:'+(-f.y*1.5)+'px;--ph:'+(portraitSheet.canvas.height*1.5)+'px"></i>':'';
 }
-export type View={tab:typeof tabs[number]|null;hero:number;pet:number;item:string;search:string;filter:string;sort:string;page:number;stat:string;statIndex:number;compareIndex:number;setting:boolean;pop:{title:string;body:string;style?:string}|null;sync:string;email:string;pause:boolean;inventory:'Gear'|'Loot log'|'Loadouts';itemFocus:boolean};
-export const defaultView=():View=>({tab:null,hero:39,pet:0,item:'',search:'',filter:'All',sort:'Rarity',page:0,stat:'Battle report',statIndex:0,compareIndex:1,setting:false,pop:null,sync:'Local save',email:'',pause:false,inventory:'Gear',itemFocus:false});
+export type View={tab:typeof tabs[number]|null;hero:number;pet:number;item:string;search:string;filter:string;sort:string;page:number;stat:string;statIndex:number;compareIndex:number;setting:boolean;pop:{title:string;body:string;style?:string}|null;sync:string;email:string;pause:boolean;inventory:'Gear'|'Loot log'|'Loadouts';itemFocus:boolean;heroFocus:boolean;gearHero:number|null;gearPicker:boolean;gearSearch:string;gearFromHero:boolean};
+export const defaultView=():View=>({tab:null,hero:39,pet:0,item:'',search:'',filter:'All',sort:'Rarity',page:0,stat:'Battle report',statIndex:0,compareIndex:1,setting:false,pop:null,sync:'Local save',email:'',pause:false,inventory:'Gear',itemFocus:false,heroFocus:false,gearHero:null,gearPicker:false,gearSearch:'',gearFromHero:false});
 export const btn=(label:string,action:string,cls='',disabled=false)=>'<button class="btn '+cls+'" data-action="'+esc(action)+'"'+(disabled?' disabled':'')+'>'+label+'</button>';
 const pill=(label:string,col='')=>'<span class="pill"'+(col?' style="--tone:'+col+'"':'')+'>'+esc(label)+'</span>';
 const message=(body:string)=>'<div class="empty">'+body+'</div>';
@@ -36,8 +37,8 @@ const select=(key:string,items:[string|number,string][],active:string|number,ari
 const sortValues:[string,string][]=[['Rarity','Rarity'],['Name','Name'],['Level','Level'],['Recent','Recent']];
 const heroPill=(id:number)=>pill(rarities[heroes[id].rarity],colors[heroes[id].rarity]);
 const petPill=(id:number)=>pill(rarities[pets[id].rarity],colors[pets[id].rarity]);
-function filters(v:View,options:string[],sort=true){
- return '<div class="tools"><input data-input="search" aria-label="Search collection" placeholder="Search…" value="'+esc(v.search)+'">'+select('filter',['All',...options].map(k=>[k,k]),v.filter,'Filter')+(sort?select('sort',sortValues,v.sort,'Sort'):'')+'</div>';
+function filters(v:View,options:string[],sort=true,extra:[string,string][]=[]){
+ return '<div class="tools"><input data-input="search" aria-label="Search collection" placeholder="Search…" value="'+esc(v.search)+'">'+select('filter',['All',...options].map(k=>[k,k]),v.filter,'Filter')+(sort?select('sort',[...extra,...sortValues],v.sort,'Sort'):'')+'</div>';
 }
 const match=(name:string,q:string)=>name.toLowerCase().includes(q.trim().toLowerCase());
 function sortList<T extends {id:number;name:string;rarity:number}>(list:T[],s:Save,v:View,isPet=false){
@@ -59,20 +60,46 @@ const levels=(xp:number,pet=false)=>{
 const char=(key:string,name:string,sub:string,action:string,selected:boolean,rarity:number,locked=false)=>'<button class="char'+(selected?' selected':'')+(locked?' locked':'')+'" data-action="'+action+'" style="--tone:'+colors[rarity]+'">'+portrait(key)+'<span><strong>'+esc(name)+'</strong><small>'+esc(sub)+'</small></span></button>';
 const section=(title:string,html:string)=>'<section class="box"><h3>'+title+'</h3>'+html+'</section>';
 const listPage=(v:View,count:number,size:number)=>count<=size?'':'<div class="pages">'+btn('Previous','page:-1','quiet',v.page<=0)+'<small>Page '+(v.page+1)+' of '+Math.ceil(count/size)+'</small>'+btn('Next','page:1','quiet',(v.page+1)*size>=count)+'</div>';
+const precise=new Intl.NumberFormat('en',{maximumFractionDigits:0});
+const scoreText=(score:number)=>precise.format(score);
+function delta(value:number,fraction=0){
+ const rounded=Number(value.toFixed(fraction));
+ return '<span class="score-delta '+(rounded>0?'gain':rounded<0?'loss':'even')+'">'+(rounded>0?'+':rounded<0?'−':'')+new Intl.NumberFormat('en',{maximumFractionDigits:fraction}).format(Math.abs(rounded))+'</span>';
+}
+function rosterTile(s:Save,id:number,position:number|null,action:string,selected=false,caption?:string){
+ const h=heroes[id],owned=s.hero[id];
+ const score=owned?scoreText(battleScore(s,id).score):'';
+ const subtitle=caption??(owned?'Lv. '+heroLv(s,id)+' · '+h.role:'Undiscovered');
+ return '<button class="roster-tile'+(selected?' selected':'')+(owned?'':' locked')+'" style="--tone:'+colors[h.rarity]+'" data-action="'+esc(action)+'"'+(action.startsWith('gearTarget:')?' aria-pressed="'+selected+'"':'')+'>'+
+ (position===null?'':'<span class="slot-number">'+(position+1)+'</span>')+portrait('h'+id)+'<strong>'+esc(h.name)+'</strong><small>'+esc(subtitle)+'</small>'+
+ (owned?'<span class="roster-score" aria-label="Battle Score '+score+'">'+icon('sword')+score+'</span>':'')+'</button>';
+}
 function heroPanel(s:Save,v:View){
  const h=heroes[v.hero],p=s.hero[h.id],slot=s.party.indexOf(h.id),items=p?equippedItems(s,h.id):[];
- const list=sortList(heroes.filter(x=>match(x.name,v.search)&&(v.filter==='All'||(v.filter==='Owned'?s.hero[x.id]:v.filter==='Active'?s.party.includes(x.id):rarities[x.rarity]===v.filter))),s,v);
- const detail='<div class="subject" style="--tone:'+colors[h.rarity]+'">'+portrait('h'+h.id)+'<div><div class="tagrow">'+heroPill(h.id)+pill(h.role)+pill(h.element,rgb(elements[h.element]))+'</div><h3>'+esc(h.name)+'</h3><p>'+[h.hp+' base HP',h.atk.toFixed(0)+' base attack',h.armor.toFixed(0)+' base armor'].join(' · ')+'</p><p>'+esc(heroLore[h.id])+'</p></div></div>';
+ const heading=hgroup('THE WAR BAND','Heroes',Object.keys(s.hero).length+' / 50 collected');
+ if(!v.heroFocus){
+  const owned=Object.keys(s.hero).length;
+  const pool=heroes.filter(x=>!s.party.includes(x.id)&&match(x.name,v.search)&&(v.filter==='All'||(v.filter==='Owned'?s.hero[x.id]:rarities[x.rarity]===v.filter)));
+  const scores=new Map(pool.filter(h=>s.hero[h.id]).map(h=>[h.id,battleScore(s,h.id).score]));
+  const list=v.sort==='Score'?pool.sort((a,b)=>(scores.get(b.id)??0)-(scores.get(a.id)??0)):sortList(pool,s,v);
+  const active=Array.from({length:5},(_,i)=>s.party[i]===undefined?'<div class="roster-empty"><span class="slot-number">'+(i+1)+'</span>'+icon('Heroes')+'<small>Open slot</small></div>':rosterTile(s,s.party[i],i,'hero:'+s.party[i])).join('');
+  return heading+'<section class="roster-section"><div class="roster-heading"><h3>Active party</h3><small>'+s.party.length+' / 5 · Formation order</small></div><div class="active-roster">'+active+'</div></section>'+
+   '<section class="roster-section"><div class="roster-heading"><h3>Roster</h3><small>'+Math.max(0,owned-s.party.length)+' reserves</small></div>'+filters(v,['Owned',...rarities],true,[['Score','Battle Score']])+
+   '<div class="reserve-roster">'+(list.map(x=>rosterTile(s,x.id,null,'hero:'+x.id)).join('')||message('No reserve heroes match.'))+'</div></section>';
+ }
+ const sheet=p?battleScore(s,h.id):null;
+ const detail='<div class="subject" style="--tone:'+colors[h.rarity]+'">'+portrait('h'+h.id)+'<div><div class="tagrow">'+heroPill(h.id)+pill(h.role)+pill(h.element,rgb(elements[h.element]))+'</div><h3>'+esc(h.name)+'</h3><p>'+esc(heroLore[h.id])+'</p></div>'+
+ (sheet?'<div class="hero-score"><small>Battle Score</small><strong>'+scoreText(sheet.score)+'</strong></div>':'')+'</div>'+
+ (sheet?'<div class="hero-stat-strip"><span>HP <b>'+num(sheet.health)+'</b></span><span>Attack <b>'+num(sheet.attack)+'</b></span><span>Armor <b>'+num(sheet.armor)+'</b></span></div>':'');
  const activeBonds=bonds.filter(b=>b.a===h.id||b.b===h.id);
- return hgroup('THE WAR BAND','Heroes',Object.keys(s.hero).length+' / 50 collected · arrange five active heroes')+filters(v,['Owned','Active',...rarities])+
- '<div class="split"><div><div class="collection">'+(list.slice(v.page*12,v.page*12+12).map(x=>char('h'+x.id,x.name,s.hero[x.id]?'Lv. '+heroLv(s,x.id)+' · '+x.role:rarities[x.rarity]+' · Undiscovered','hero:'+x.id,x.id===h.id,x.rarity,!s.hero[x.id])).join('')||message('No heroes match.'))+'</div>'+listPage(v,list.length,12)+'</div><div class="details">'+detail+
+ return '<div class="detail-back">'+btn('‹ Back to heroes','heroList','quiet')+(slot<0?'':pill('Active · Slot '+(slot+1)))+'</div><div class="details">'+detail+
  (p?levels(p.xp)+section('Formation & behavior','<div class="controls">'+select('party:'+h.id,[[-1,'Choose formation slot'],...[0,1,2,3,4].map((i):[number,string]=>[i,(i+1)+'. '+(s.party[i]!==undefined?heroes[s.party[i]].name:'Empty')])],slot,'Formation slot')+(slot<0&&s.party.length<5?btn('Add to party','partyAdd:'+h.id,'gold'):'')+
  select('ai:'+h.id,['Balanced','Aggressive','Conserve'].map(x=>[x,x]),p.ai,'Combat AI')+'</div><p class="muted">Skill priority</p><div class="controls">'+p.priority.map((n,i)=>btn((i+1)+'. '+esc(h.skills[n].name),'priority:'+h.id+':'+i,'quiet')).join('')+'</div>')+
- section('Equipment & companion','<div class="gear-grid">'+slots.map((name,i)=>{const item=items.find(g=>g.id===p.gear[i]);return btn((item?itemPortrait(item.base,item.rank):slotIcon(i))+'<span>'+name+'<small>'+(item?esc(itemName(item)):'Empty')+'</small></span>',item?'item:'+item.id:'slot:'+i,'gear-slot');}).join('')+'</div><div class="controls"><label>Companion '+select('petFor:'+h.id,[[-1,'No pet'],...Object.keys(s.pet).map((id):[number,string]=>[+id,pets[+id].name])],p.pet??-1,'Hero companion')+'</label>'+
+ section('Equipment & companion','<div class="gear-grid">'+slots.map((name,i)=>{const item=items.find(g=>g.id===p.gear[i]);return btn((item?itemPortrait(item.base,item.rank):slotIcon(i))+'<span>'+name+'<small>'+(item?esc(itemName(item)):'Empty')+'</small></span>','slot:'+i,'gear-slot');}).join('')+'</div><div class="controls"><label>Companion '+select('petFor:'+h.id,[[-1,'No pet'],...Object.keys(s.pet).map((id):[number,string]=>[+id,pets[+id].name])],p.pet??-1,'Hero companion')+'</label>'+
  btn('Save equipment loadout','saveLoadout:'+h.id,'quiet',s.loadouts.length>=12)+'</div>')+
  section('Ascension','<p>'+p.stars+' / 10 stars · '+p.essence+' '+esc(h.name)+' Essence</p><div class="controls">'+btn('Ascend · '+ascensionCost(p.stars)+' essence','ascendH:'+h.id,'gold',p.stars>=10||p.essence<ascensionCost(p.stars))+btn('Convert 5 spare essence','convert:'+h.id,'quiet',p.stars<10||p.essence<5)+'</div>')+
  section('Mastery · '+masteryPoints(p)+' points','<div class="tree">'+masteryNames.map((_,i)=>btn('<strong>'+esc(heroMastery(h.id,i).title)+'</strong><small>'+esc(heroMastery(h.id,i).description)+'</small>','master:'+h.id+':'+i,p.tree.includes(i)?'mastery on':'mastery',p.tree.includes(i)||i%4===3&&p.tree.some(n=>n%4===3)||masteryPoints(p)<=0||(i%4!==0&&!p.tree.includes(i-1)))).join('')+'</div>'+btn('Respec · 60 gold','respec:'+h.id,'quiet',!p.tree.length||s.gold<60)):'<p class="muted">Unlock through the summoning circle. You can inspect abilities before collecting this hero.</p>')+
- section('Signature · '+heroProfiles[h.id].name,'<p>'+heroProfiles[h.id].description+'. '+skillText(heroProfiles[h.id].effect)+'</p><p>3★ Stronger signature · 6★ '+heroProfiles[h.id].starEffect+' follow-up · 10★ '+heroProfiles[h.id].finalEffect+' apex</p>')+section('Abilities',h.skills.map((skill,i)=>skills([skill])+'<p class="muted">'+esc(skillCombos[h.id][i].description)+'</p>').join(''))+section('Character bonds',activeBonds.map(b=>'<div class="skill"><strong>'+esc(b.name)+'</strong><small>'+(s.party.includes(b.a)&&s.party.includes(b.b)?'Active':'Inactive')+'</small><p>With '+esc(heroes[b.a===h.id?b.b:b.a].name)+'. '+skillText(b.effect)+'</p></div>').join('')||'<p class="muted">No recorded bonds.</p>')+'</div></div>';
+ section('Signature · '+heroProfiles[h.id].name,'<p>'+heroProfiles[h.id].description+'. '+skillText(heroProfiles[h.id].effect)+'</p><p>3★ Stronger signature · 6★ '+heroProfiles[h.id].starEffect+' follow-up · 10★ '+heroProfiles[h.id].finalEffect+' apex</p>')+section('Abilities',h.skills.map((skill,i)=>skills([skill])+'<p class="muted">'+esc(skillCombos[h.id][i].description)+'</p>').join(''))+section('Character bonds',activeBonds.map(b=>'<div class="skill"><strong>'+esc(b.name)+'</strong><small>'+(s.party.includes(b.a)&&s.party.includes(b.b)?'Active':'Inactive')+'</small><p>With '+esc(heroes[b.a===h.id?b.b:b.a].name)+'. '+skillText(b.effect)+'</p></div>').join('')||'<p class="muted">No recorded bonds.</p>')+'</div>';
 }
 function petPanel(s:Save,v:View){
  const pet=pets[v.pet],p=s.pet[pet.id],list=sortList(pets.filter(x=>match(x.name,v.search)&&(v.filter==='All'||(v.filter==='Owned'?s.pet[x.id]:rarities[x.rarity]===v.filter))),s,v,true);
@@ -91,6 +118,41 @@ function petPanel(s:Save,v:View){
 function rolls(i:Item){
  return i.rolls.map((r,k)=>'<div class="skill"><strong>'+esc(affixes[r.affix].name)+'</strong><small>+'+num(r.value*(['attack','health','armor'].includes(affixes[r.affix].stat)?1:100))+(['attack','health','armor'].includes(affixes[r.affix].stat)?'':'%')+'</small><p>'+esc(affixes[r.affix].side)+' '+btn('Reroll','enchant:'+i.id+':'+k,'micro')+'</p></div>').join('');
 }
+function gearRecipient(s:Save,v:View,id:number,item?:Item){
+ const target=heroes[id];
+ if(!target)return '';
+ const card=(hero:number,slot:number|null)=>{
+  const current=battleScore(s,hero);
+  const preview=item?compareGear(s,hero,item,current):null;
+  const caption=preview?.reason||(preview?.after?((preview.after.score>current.score?'+':'')+(preview.after.score-current.score)+' score · Lv. '+heroLv(s,hero)):undefined);
+  return rosterTile(s,hero,slot,'gearTarget:'+hero,hero===id,caption);
+ };
+ let picker='';
+ if(v.gearPicker){
+  const reserves=Object.keys(s.hero).map(Number).filter(h=>!s.party.includes(h)&&match(heroes[h].name,v.gearSearch));
+  picker='<div class="recipient-picker" id="recipient-picker"><div class="roster-heading"><h3>Active party</h3><small>Choose a hero</small></div><div class="active-roster">'+s.party.map((h,i)=>card(h,i)).join('')+'</div>'+
+   '<div class="roster-heading"><h3>Reserves</h3><small>'+reserves.length+' matches</small></div><input data-input="gearSearch" aria-label="Find reserve hero" placeholder="Find a reserve…" value="'+esc(v.gearSearch)+'">'+
+   '<div class="reserve-roster recipient-reserves">'+(reserves.map(h=>card(h,null)).join('')||message('No reserve heroes match.'))+'</div></div>';
+ }
+ return '<section class="recipient"><div class="recipient-summary">'+portrait('h'+id)+'<div><small>Comparing for</small><strong>'+esc(target.name)+'</strong></div><button class="btn quiet" data-action="gearPicker" aria-controls="recipient-picker" aria-expanded="'+v.gearPicker+'">'+(v.gearPicker?'Close picker':'Change hero')+'</button></div>'+(v.gearPicker?picker:'')+'</section>';
+}
+function swapComparison(s:Save,id:number,item:Item){
+ const preview=compareGear(s,id,item);
+ const owner=wornBy(s,item.id);
+ if(owner===String(id))return '<div class="swap-preview"><strong>Equipped on '+esc(heroes[id].name)+'</strong><span>'+scoreText(preview.before.score)+' Battle Score</span></div>';
+ if(!preview.after)return '<div class="swap-preview"><strong>'+esc(preview.reason)+'</strong><span>'+scoreText(preview.before.score)+' current Battle Score</span></div>';
+ const {before,after,removed}=preview,change=after.score-before.score;
+ const keys=[['health','HP'],['attack','Attack'],['armor','Armor'],['dps','Est. DPS'],['healing','Est. healing/s'],['protection','Est. protection/s']] as const;
+ const adjusted=keys.filter(([key])=>Math.abs(after[key]-before[key])>=.05);
+ const donor=owner===undefined?'':(()=>{
+  const from=Number(owner),worn=equippedItems(s,from),old=battleScore(s,from,worn),next=battleScore(s,from,worn.filter(i=>i.id!==item.id));
+  return '<p class="muted">Transfers from '+esc(heroes[from].name)+' · '+delta(next.score-old.score)+' Battle Score</p>';
+ })();
+ return '<div class="swap-preview"><div class="swap-score"><div><small>Current</small><strong>'+scoreText(before.score)+'</strong></div><span aria-hidden="true">→</span><div><small>After equip</small><strong>'+scoreText(after.score)+'</strong></div><div><small>Battle Score</small><strong>'+delta(change)+'</strong></div></div>'+
+ '<p>'+ (removed.length?'Replaces '+removed.map(i=>esc(itemName(i))+' ('+slots[bases[i.base].slot]+')').join(' and '):'Fills an empty slot')+'</p>'+
+ (adjusted.length?'<div class="swap-stats">'+adjusted.map(([key,label])=>'<div><span>'+label+'</span><b>'+num(before[key])+' → '+num(after[key])+'</b>'+delta(after[key]-before[key],1)+'</div>').join('')+'</div>':'')+donor+
+ '<small class="muted">Role-weighted estimate. The battle meter shows actual performance.</small></div>';
+}
 function itemPanel(s:Save,v:View){
  const log=lootHistory(s),counts=Array(6).fill(0);for(const drop of log)counts[drop.rank]++;
  const header=hgroup('THE ARMORY','Inventory',num(s.items.length)+' / 400 slots · '+num(s.loot)+' lifetime drops')+
@@ -105,19 +167,35 @@ function itemPanel(s:Save,v:View){
    }).join('')||message('Win encounters to collect gear. Your latest drops will appear here.'))+'</div>';
  }
  if(v.inventory==='Loadouts')return header+section('Saved loadouts',s.loadouts.map((l,index)=>'<div class="controls"><strong>'+esc(l.name)+'</strong>'+btn('Apply','loadout:'+index,'quiet')+btn('Remove','deleteLoadout:'+index,'micro')+'</div>').join('')||'<p class="muted">Save a hero’s current equipment from the Heroes panel.</p>');
- const visible=s.items.filter(i=>match(itemName(i)+' '+bases[i.base].name,v.search)&&(v.filter==='All'||v.filter===slots[bases[i.base].slot]||v.filter===itemRanks[i.rank]||(v.filter==='Equipped'&&equipped(s,i.id))||(v.filter==='Locked'&&i.locked))).sort((a,b)=>v.sort==='Name'?itemName(a).localeCompare(itemName(b)):v.sort==='Level'?b.level-a.level:v.sort==='Recent'?+b.id-+a.id:b.rank-a.rank||b.level-a.level);
- const i=s.items.find(x=>x.id===v.item)??visible[0],hero=s.hero[v.hero]?v.hero:s.party[0],base=i?bases[i.base]:null;
- const compare=base?s.items.find(x=>s.hero[hero].gear[base.slot]===x.id):undefined,owner=i?wornBy(s,i.id):undefined;
- return header+'<div class="inventory-tools'+(v.itemFocus?' inspecting':'')+'">'+filters(v,['Equipped','Locked',...itemRanks,...slots])+
- '<div class="controls toolbar">'+select('autoSell',[[-1,'Auto-sell off'],...[0,1,2,3].map((n):[number,string]=>[n,'Sell '+itemRanks[n]+' and lower'])],s.autoSell,'Auto-sell threshold')+btn('Sell filtered unlocked gear','bulk','quiet',!visible.some(i=>!i.locked&&!equipped(s,i.id)))+'</div></div>'+
- '<div class="split inventory-layout'+(v.itemFocus?' inspecting':'')+'"><div class="gear-list"><div class="collection">'+(visible.slice(v.page*12,v.page*12+12).map(j=>'<button class="char item '+(i?.id===j.id?'selected':'')+'" data-action="item:'+j.id+'" style="--tone:'+itemColors[j.rank]+'">'+itemPortrait(j.base,j.rank)+'<span><strong>'+esc(itemName(j))+'</strong><small>'+slots[bases[j.base].slot]+' · Lv. '+j.level+(j.locked?' · Locked':'')+(equipped(s,j.id)?' · Worn':'')+'</small></span></button>').join('')||message('No gear matches. Equipment drops during adventure.'))+'</div>'+listPage(v,visible.length,12)+'</div><div class="details inventory-detail">'+
- btn('‹ Back to gear','itemList','quiet item-back')+(i&&base?'<div class="subject" style="--tone:'+itemColors[i.rank]+'">'+itemPortrait(i.base,i.rank)+'<div><div class="tagrow">'+pill(itemRanks[i.rank],itemColors[i.rank])+pill(slots[base.slot])+'</div><h3>'+esc(itemName(i))+'</h3><p>Level '+i.level+(base.role?' · '+base.role:'')+(base.two?' · Two-handed':'')+' · Found at stage '+num(i.found)+(i.exceptional?' · Exceptional roll':'')+'</p></div></div>'+
- '<div class="controls">'+select('gearHero',Object.keys(s.hero).map(id=>[+id,heroes[+id].name]),hero,'Equipment recipient')+btn(owner===String(hero)?'Unequip':'Equip / transfer',owner===String(hero)?'unequip:'+hero+':'+base.slot:'equip:'+hero+':'+i.id,'gold',owner!==String(hero)&&!canEquip(s,hero,i))+btn(i.locked?'Unlock':'Lock','lock:'+i.id,'quiet')+btn('Sell · '+sellValue(i),'sell:'+i.id,'quiet',i.locked||!!owner)+'</div>'+
+ const hero=v.gearHero!==null&&s.hero[v.gearHero]?v.gearHero:s.hero[v.hero]?v.hero:s.party[0];
+ const before=hero===undefined?null:battleScore(s,hero);
+ const previews=new Map<string,ReturnType<typeof compareGear>>();
+ const preview=(item:Item)=>{
+  if(!before)return null;
+  if(!previews.has(item.id))previews.set(item.id,compareGear(s,hero,item,before));
+  return previews.get(item.id)!;
+ };
+ const upgrade=(item:Item)=>{const p=preview(item);return p?.after?p.after.score-p.before.score:-Infinity;};
+ const visible=s.items.filter(i=>match(itemName(i)+' '+bases[i.base].name,v.search)&&(v.filter==='All'||v.filter===slots[bases[i.base].slot]||v.filter===itemRanks[i.rank]||(v.filter==='Equipped'&&equipped(s,i.id))||(v.filter==='Locked'&&i.locked))).sort((a,b)=>v.sort==='Upgrade'?(upgrade(b)-upgrade(a)||b.rank-a.rank):v.sort==='Name'?itemName(a).localeCompare(itemName(b)):v.sort==='Level'?b.level-a.level:v.sort==='Recent'?+b.id-+a.id:b.rank-a.rank||b.level-a.level);
+ const i=s.items.find(x=>x.id===v.item),base=i?bases[i.base]:null;
+ const compare=base&&s.hero[hero]?s.items.find(x=>s.hero[hero].gear[base.slot]===x.id):undefined,owner=i?wornBy(s,i.id):undefined;
+ const back=v.gearFromHero?btn('‹ Back to '+esc(heroes[v.hero].name),'hero:'+v.hero,'quiet'):'';
+ if(!v.itemFocus||!i||!base)return (back?'<div class="detail-back">'+back+'</div>':'')+header+gearRecipient(s,v,hero)+
+  '<div class="inventory-tools">'+filters(v,['Equipped','Locked',...itemRanks,...slots],true,[['Upgrade','Biggest upgrade']])+
+  '<div class="controls toolbar">'+select('autoSell',[[-1,'Auto-sell off'],...[0,1,2,3].map((n):[number,string]=>[n,'Sell '+itemRanks[n]+' and lower'])],s.autoSell,'Auto-sell threshold')+btn('Sell filtered unlocked gear','bulk','quiet',!visible.some(i=>!i.locked&&!equipped(s,i.id)))+'</div></div>'+
+  '<div class="armory-grid">'+(visible.slice(v.page*12,v.page*12+12).map(j=>{
+   const p=preview(j);
+   return '<button class="char item" data-action="item:'+esc(j.id)+'" style="--tone:'+itemColors[j.rank]+'">'+itemPortrait(j.base,j.rank)+'<span><strong>'+esc(itemName(j))+'</strong><small>'+slots[bases[j.base].slot]+' · Lv. '+j.level+(j.locked?' · Locked':'')+(equipped(s,j.id)?' · Worn':'')+'</small><small>'+(p?.after?delta(p.after.score-p.before.score)+' score':esc(p?.reason??''))+'</small></span></button>';
+  }).join('')||message('No gear matches. Equipment drops during adventure.'))+'</div>'+listPage(v,visible.length,12);
+ return '<div class="detail-back">'+btn('‹ Back to gear','itemList','quiet')+back+'</div><div class="details inventory-detail">'+
+ '<div class="subject" style="--tone:'+itemColors[i.rank]+'">'+itemPortrait(i.base,i.rank)+'<div><div class="tagrow">'+pill(itemRanks[i.rank],itemColors[i.rank])+pill(slots[base.slot])+'</div><h3>'+esc(itemName(i))+'</h3><p>Level '+i.level+(base.role?' · '+base.role:'')+(base.two?' · Two-handed':'')+' · Found at stage '+num(i.found)+(i.exceptional?' · Exceptional roll':'')+'</p></div></div>'+
+ gearRecipient(s,v,hero,i)+(before?swapComparison(s,hero,i):'')+
+ '<div class="controls equip-actions">'+btn(owner===String(hero)?'Unequip':owner?'Transfer gear':'Equip gear',owner===String(hero)?'unequip:'+hero+':'+base.slot:'equip:'+hero+':'+i.id,'gold',owner!==String(hero)&&!canEquip(s,hero,i))+btn(i.locked?'Unlock':'Lock','lock:'+i.id,'quiet')+btn('Sell · '+sellValue(i),'sell:'+i.id,'quiet',i.locked||!!owner)+'</div>'+
  (owner?'<p class="muted">Worn by '+esc(heroes[+owner].name)+'</p>':'')+
  section('Rolled properties',rolls(i)+(i.set===null?'':'<p>'+esc(sets[i.set])+' · set bonuses at 2 and 4 pieces</p>')+(i.unique===null?'':'<p><strong>'+esc(uniques[i.unique].name)+'</strong> · On '+uniques[i.unique].condition+'. '+skillText(uniques[i.unique].effect)+'</p>'))+
  (i.sockets.length?section('Sockets',i.sockets.map((gem,n)=>'<div class="controls"><span>Socket '+(n+1)+'</span>'+select('gem:'+i.id+':'+n,[[-1,'Empty'],...gemNames.map((g,id):[number,string]=>[id,g+' · '+s.gems[id]+' in bag'])],gem??-1,'Socket gem')+'</div>').join('')):'')+
- (compare&&compare.id!==i.id?section('Currently worn · '+esc(itemName(compare)),rolls(compare)):''):message('Select an item to compare its properties.'))+
- '</div></div>';
+ (compare&&compare.id!==i.id?section('Currently worn · '+esc(itemName(compare)),rolls(compare)):'')+
+ '</div>';
 }
 function summonPanel(s:Save){
  return hgroup('THE ASTRAL CIRCLE','Summon','Spend crystals earned in combat, through achievements, and from guild assignments.')+
@@ -193,7 +271,7 @@ export function renderPanel(s:Save,v:View){
 }
 export function settings(s:Save,v:View){
  const range=(key:'shake'|'music'|'sfx',name:string)=>'<label class="slider"><span>'+name+'</span><input type="range" min="0" max="1" step=".05" value="'+s.settings[key]+'" data-setting="'+key+'"></label>';
- return hgroup('EVERFALL','Settings','Game build 1.0.0 · specification 3.0')+
+ return hgroup('EVERFALL','Settings','Game build 1.0.1 · specification 3.0')+
  section('Display & sound','<div class="controls"><label>Effects density '+select('quality',[[0,'Low'],[1,'Medium'],[2,'High']],s.settings.quality,'Effects quality')+'</label></div>'+range('shake','Screen shake')+range('music','Music volume')+range('sfx','Effects volume'))+
  section('Save profile','<p>'+esc(v.email||'Local expedition')+'</p><p class="muted">'+esc(v.sync)+'</p><div class="controls">'+(v.email?btn('Sign out','logout','quiet')+btn('Retry cloud sync','sync','quiet'):btn('Open cloud sign-in','login','gold'))+btn('Export save','export','quiet')+'</div><label class="import">Import save into this profile <input type="file" accept=".json,application/json" id="import-save"></label>');
 }

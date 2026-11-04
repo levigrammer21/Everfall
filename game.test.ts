@@ -254,3 +254,33 @@ test('all companions activate their conditional instinct and ascension effects',
   for(const tail of ['',' · Ascended',' · Apex'])assert.ok(b.cues.some(c=>c.name===name+tail),name+tail);
  }
 });
+
+test('gear previews match applied scores, including a broken set and two-handed offhand removal',async()=>{
+ const {battleScore,compareGear}=await import('./battle-score');
+ const s=legacySave(0,seed),id=39;
+ const rng=prng(1);
+ const item=(id:string,base:number,set:number|null,level=1)=>({...makeItem(1,rng,id),base,level,set});
+ const main=item('1',40,0),off=item('2',50,0),twoHanded=item('3',41,null),lockedLevel=item('4',40,null,999);
+ s.items=[main,off,twoHanded,lockedLevel];
+ assert.ok(equip(s,id,main.id));assert.ok(equip(s,id,off.id));
+ const before=structuredClone(s),preview=compareGear(s,id,twoHanded);
+ assert.ok(preview.after);assert.deepEqual(preview.removed.map(i=>i.id),[main.id,off.id]);assert.deepEqual(s,before);
+ assert.equal(compareGear(s,id,lockedLevel).reason,'Requires Lv. 999');
+ assert.ok(equip(s,id,twoHanded.id));assert.deepEqual(preview.after,battleScore(s,id));assert.equal(s.hero[id].gear[5],null);
+ assert.equal(compareGear(s,id,off).reason,'Two-handed weapon equipped');
+ const recipient=43,transfer=compareGear(s,recipient,twoHanded);
+ assert.ok(transfer.after);assert.ok(equip(s,recipient,twoHanded.id));assert.deepEqual(transfer.after,battleScore(s,recipient));
+ assert.equal(s.hero[id].gear[4],null);
+});
+
+test('displayed hero core stats match live combat, and better gear can be identified by score',async()=>{
+ const {battleScore,compareGear}=await import('./battle-score');
+ const s=legacySave(0,seed),id=39;
+ const rng=prng(seed),strong={...makeItem(1,rng,'strong'),base:40,level:1,rolls:[{affix:0,value:60}],unique:null,set:null,sockets:[]};
+ s.items.push(strong);
+ const preview=compareGear(s,id,strong);
+ assert.ok(preview.after!.score>preview.before.score);
+ assert.ok(equip(s,id,strong.id));
+ const score=battleScore(s,id),unit=createBattle(s,seed).units.find(u=>u.hero===id)!;
+ assert.equal(score.health,unit.max);assert.equal(score.attack,unit.atk);assert.equal(score.armor,unit.armor);
+});

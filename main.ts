@@ -61,7 +61,7 @@ async function cloudWrite(){
 function showAuth(message=''){
  loginShown=true;
  if(s){renderOverlay();return;}
- root.innerHTML='<main class="auth"><section class="auth-card"><p class="eyebrow">THE ENDLESS ROAD</p><div class="auth-emblem">'+icon('Summon')+'</div><h1>EVERFALL</h1><p class="auth-copy">Gather your war band and venture into the dark.</p><div id="auth-box">'+authForm(message)+'</div><p class="auth-build">BUILD 1.0.0</p></section></main>';
+ root.innerHTML='<main class="auth"><section class="auth-card"><p class="eyebrow">THE ENDLESS ROAD</p><div class="auth-emblem">'+icon('Summon')+'</div><h1>EVERFALL</h1><p class="auth-copy">Gather your war band and venture into the dark.</p><div id="auth-box">'+authForm(message)+'</div><p class="auth-build">BUILD 1.0.1</p></section></main>';
 }
 function authForm(message=''){
  return '<div class="auth-actions">'+btn('Continue with Google','google','gold')+'<form id="email-form"><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><div class="controls"><button class="btn bright" type="submit">Sign in</button><button class="btn quiet" type="submit" data-register="yes">Create account</button></div></form>'+btn('Reset password','resetPassword','micro')+
@@ -120,7 +120,7 @@ async function reconnect(force=false){
 function mount(){
  root.innerHTML='<main class="game"><header class="topbar"><button class="brand" data-action="close" aria-label="Return to battle"><span class="crest">'+icon('Summon')+'</span><span>EVERFALL<small>THE ENDLESS ROAD</small></span></button><div class="wallet"><span title="Gold">'+icon('gold')+'<b id="gold"></b></span><span title="Summoning crystals">'+icon('crystal')+'<b id="crystals"></b></span><span title="Dungeon keys">'+icon('key')+'<b id="keys"></b></span></div><button class="icon-btn" data-action="settings" aria-label="Settings">'+icon('gear')+'</button></header>'+
  '<section class="field" aria-label="Animated battlefield"><div id="scene"></div><div class="field-shade"></div><div class="field-label"><p id="field-kicker" class="eyebrow"></p><h1 id="field-name"></h1><p id="field-detail"></p></div><div class="battle-controls"><button class="mode" id="mode" data-action="mode" title="Change push or farm mode"></button><button class="icon-btn" id="pause" data-action="pause" aria-label="Pause combat">'+icon('pause')+'</button><button class="speed" id="speed" data-action="speed" aria-label="Combat speed">1×</button><button class="icon-btn live-toggle" data-action="liveMeter" id="live-toggle" aria-label="Battle meter" aria-expanded="false" title="Battle meter">'+icon('Stats')+'<span>Meter</span></button></div><aside id="live-meter" class="live-meter" aria-label="Battle meter" hidden><div class="live-bar"><strong>'+icon('Stats')+' Battle meter</strong><div><button data-action="liveWave:current" id="meter-current">Current</button><button data-action="liveWave:last" id="meter-last">Last wave</button><button data-action="liveMeter" class="live-close" aria-label="Close battle meter">'+icon('close')+'</button></div></div><div id="meter-body" class="meter-body"></div></aside><div id="field-toast" class="field-toast"></div><button class="btn gold field-offer" data-action="tab:Adventure" id="world-offer" hidden>Encounter waiting</button><div id="camp" class="camp" hidden></div><div class="field-edge"></div></section>'+
- '<section class="party-strip" aria-label="Active party"><span class="party-label">WAR BAND</span><div id="party"></div><span id="party-status"></span></section><nav class="nav" aria-label="Game navigation">'+tabs.map(t=>'<button data-action="tab:'+t+'">'+icon(t)+'<span>'+t+'</span></button>').join('')+'</nav><div class="footer"><span id="save-status">LOCAL SAVE</span><span>EVERFALL · 1.0.0</span></div></main><div id="overlay" class="overlay" hidden></div><div id="modal" class="modal" hidden></div><div id="toast" class="toast" role="status" hidden></div>';
+ '<section class="party-strip" aria-label="Active party"><span class="party-label">WAR BAND</span><div id="party"></div><span id="party-status"></span></section><nav class="nav" aria-label="Game navigation">'+tabs.map(t=>'<button data-action="tab:'+t+'">'+icon(t)+'<span>'+t+'</span></button>').join('')+'</nav><div class="footer"><span id="save-status">LOCAL SAVE</span><span>EVERFALL · 1.0.1</span></div></main><div id="overlay" class="overlay" hidden></div><div id="modal" class="modal" hidden></div><div id="toast" class="toast" role="status" hidden></div>';
  visual=launchBattlefield(el('scene')!);visual.scene.onCue=c=>audio.cue(c);
  hudHash='';
 }
@@ -200,7 +200,7 @@ function renderOverlay(keep=true){
  root.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('selected',x.getAttribute('data-action')==='tab:'+view.tab));
 }
 function open(tab:View['tab']){
- view.tab=tab;view.setting=false;loginShown=false;view.search='';view.filter=tab==='Heroes'?'Owned':tab==='Pets'&&s&&Object.keys(s.pet).length?'Owned':'All';view.sort='Rarity';view.page=0;if(tab==='Inventory'){view.inventory='Gear';view.itemFocus=false;}renderOverlay(false);
+ view.tab=tab;view.setting=false;loginShown=false;view.search='';view.filter=tab==='Heroes'?'Owned':tab==='Pets'&&s&&Object.keys(s.pet).length?'Owned':'All';view.sort='Rarity';view.page=0;view.heroFocus=false;if(tab==='Inventory'){view.inventory='Gear';view.itemFocus=false;view.gearPicker=false;view.gearSearch='';view.gearFromHero=false;}renderOverlay(false);
 }
 function inventoryFilter(){
  if(!s)return [];
@@ -261,17 +261,26 @@ root.addEventListener('click',async e=>{
   case 'page':view.page=Math.max(0,view.page+n);break;
   case 'stat':view.stat=a;view.page=0;view.search='';break;
   case 'encyclopedia':view.stat='Encyclopedia';open('Stats');return;
-  case 'hero':if(view.tab!=='Heroes')open('Heroes');view.hero=n;break;
+  case 'hero':
+   if(!heroes[n])return;
+   if(view.tab!=='Heroes')open('Heroes');
+   view.hero=n;view.heroFocus=true;renderOverlay(false);return;
+  case 'heroList':view.heroFocus=false;renderOverlay(false);return;
   case 'pet':view.pet=n;break;
   case 'item':
    if(view.tab!=='Inventory')open('Inventory');
-   view.inventory='Gear';view.itemFocus=true;view.item=a;renderOverlay(false);return;
+   view.inventory='Gear';view.itemFocus=true;view.item=a;view.gearPicker=false;view.gearSearch='';renderOverlay(false);return;
   case 'inventory':view.inventory=a as View['inventory'];view.itemFocus=false;renderOverlay(false);return;
-  case 'itemList':view.itemFocus=false;renderOverlay(false);return;
+  case 'itemList':view.itemFocus=false;view.gearPicker=false;renderOverlay(false);return;
+  case 'gearPicker':view.gearPicker=!view.gearPicker;view.gearSearch='';renderOverlay();return;
+  case 'gearTarget':
+   if(s.hero[n]){view.gearHero=n;view.gearPicker=false;view.gearSearch='';view.page=0;renderOverlay();}
+   return;
   case 'liveMeter':liveOpen=!liveOpen;liveStamp='';liveHud();return;
   case 'liveWave':liveLast=a==='last'&&!!lastBattle;liveHero='';liveStamp='';liveHud();return;
   case 'meterHero':liveHero=liveHero===a?'':a;liveStamp='';liveHud();return;
-  case 'slot':open('Inventory');view.filter=slots[n];view.item='';view.itemFocus=false;break;
+  case 'slot':
+   open('Inventory');view.gearHero=view.hero;view.gearFromHero=true;view.filter=slots[n];view.sort='Upgrade';view.item='';view.itemFocus=false;renderOverlay(false);return;
   case 'dismiss':view.pop=null;break;
   case 'pause':view.pause=!view.pause;break;
   case 'speed':s.settings.speed=s.settings.speed===1?2:s.settings.speed===2?4:1;modified=true;render=false;break;
@@ -291,7 +300,7 @@ root.addEventListener('click',async e=>{
   case 'respec':if(s.hero[n]?.tree.length&&s.gold>=60){s.gold-=60;s.hero[n].tree=[];modified=rebuild=true;}break;
   case 'hatch':{const result=hatch(s,n);if(result){modified=true;view.pet=result.id;lootPop('An egg has hatched',[result],true);}break;}
   case 'sanctuary':modified=assignSanctuary(s,n);break;
-  case 'equip':modified=rebuild=equip(s,n,b);break;
+  case 'equip':modified=rebuild=equip(s,n,b);if(modified)toast('Gear equipped on '+heroes[n].name);break;
   case 'unequip':if(s.hero[n]?.gear[k]){s.hero[n].gear[k]=null;modified=rebuild=true;}break;
   case 'lock':{const i=s.items.find(x=>x.id===a);if(i){i.locked=!i.locked;modified=true;}break;}
   case 'sell':modified=!!sell(s,[a]);if(modified){view.item='';view.itemFocus=false;}break;
@@ -333,9 +342,10 @@ root.addEventListener('click',async e=>{
 root.addEventListener('input',e=>{
  const input=e.target as HTMLInputElement;if(!s)return;
  if(input.dataset.setting){const k=input.dataset.setting as 'shake'|'music'|'sfx';s.settings[k]=+input.value;audio.music=s.settings.music;audio.sfx=s.settings.sfx;changed(false);}
- if(input.dataset.input==='search'){
-  view.search=input.value;view.page=0;const cursor=input.selectionStart;renderOverlay();
-  const replacement=root.querySelector<HTMLInputElement>('[data-input=search]');replacement?.focus();if(cursor!==null)replacement?.setSelectionRange(cursor,cursor);
+ const field=input.dataset.input;
+ if(field==='search'||field==='gearSearch'){
+  view[field]=input.value;if(field==='search')view.page=0;const cursor=input.selectionStart;renderOverlay();
+  const replacement=root.querySelector<HTMLInputElement>('[data-input='+field+']');replacement?.focus({preventScroll:true});if(cursor!==null)replacement?.setSelectionRange(cursor,cursor);
  }
 });
 root.addEventListener('change',async e=>{
@@ -363,7 +373,6 @@ root.addEventListener('change',async e=>{
    if(value>=0)modified=rebuild=assignPet(s,value,n);
    else{const old=Object.keys(s.hero).find(id=>s!.hero[+id].pet===n);if(old)modified=rebuild=assignPet(s,+old,null);}break;
   }
-  case 'gearHero':view.hero=value;break;
   case 'autoSell':s.autoSell=value;modified=true;break;
   case 'gem':{
    const i=s.items.find(x=>x.id===a);if(!i||k>=i.sockets.length||value>=0&&!s.gems[value])break;

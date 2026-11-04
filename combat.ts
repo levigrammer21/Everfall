@@ -1,7 +1,8 @@
+import { heroSheet } from './battle-score';
 import { heroProfiles, petProfiles, petPair, skillCombos, type IdentityTrigger, type IdentityTest } from './identity';
 import { biomes, bonds, dungeons, eliteMods, enemies, heroes, pets, worldEvents, type Effect, type Element, type Skill } from './content';
 import { makeItem, opposite, uniques, type GearStats, type Item } from './loot';
-import { capStage, dungeonStage, equippedItems, equippedStats, levelOf, type Metric, type Save } from './save';
+import { capStage, dungeonStage, equippedItems, levelOf, type Metric, type Save } from './save';
 export const STEP=.05;
 type Status={left:number;power:number;owner:Unit;name:string;pet:boolean};
 export type Unit={
@@ -33,15 +34,14 @@ function unit(data:Partial<Unit>):Unit{return {id:'',hero:null,enemy:null,pet:nu
 export function createBattle(s:Save,seed:number){
  const info=encounter(s,seed),rng=prng(seed);
  const players=s.party.map((id,slot)=>{
-  const h=heroes[id],p=s.hero[id],g=equippedStats(s,id),level=levelOf(p.xp);
-  const grow=(1+h.growth*(level-1))*(1+Math.pow(level-1,1.32)*.0048)*(1+p.stars*.085)*(1+Math.min(2,Math.sqrt(s.research)*.016));
-  const max=h.hp*grow+(g.health??0)+(s.infirmary>0?8:0);
-  const passives=[...h.skills.slice(3),...equippedItems(s,id).flatMap(i=>i.unique===null?[]:[{name:uniques[i.unique].name,effect:uniques[i.unique].effect,power:uniques[i.unique].power,cool:6,trigger:uniques[i.unique].condition}])];
+  const h=heroes[id],p=s.hero[id],items=equippedItems(s,id),sheet=heroSheet(s,id,items);
+  const max=sheet.health+(s.infirmary>0?8:0);
+  const passives=[...h.skills.slice(3),...items.flatMap(i=>i.unique===null?[]:[{name:uniques[i.unique].name,effect:uniques[i.unique].effect,power:uniques[i.unique].power,cool:6,trigger:uniques[i.unique].condition}])];
   const x=.18-slot*.025,y=(slot%2)*.16+Math.floor(slot/2)*.046;
   return unit({id:'h'+id,hero:id,pet:p.pet,name:h.name,shape:h.shape,hue:h.hue,element:h.element,role:h.role,x,y,oldX:x,oldY:y,hp:max,max,
-   atk:(h.atk*grow+(g.attack??0))*(p.tree.includes(0)?1.08:1),armor:h.armor*(1+level*.019)+(g.armor??0)+(p.tree.includes(4)?12:0),
-   speed:Math.max(.21,h.speed/(1+(g.speed??0))),reach:(h.role==='Guard'||h.role==='Striker'?.092:.245)-(p.ai==='Aggressive'?.017:0),crit:Math.min(.82,.078+(g.crit??0)),skills:h.skills.slice(0,3),timers:[1.1+slot*.23,3+slot*.45,6+slot*.47],
-   gear:g,tree:p.tree,stars:p.stars,ai:p.ai,priority:p.priority,passives,passTimers:passives.map(()=>0)});
+   atk:sheet.attack,armor:sheet.armor,
+   speed:sheet.speed,reach:(h.role==='Guard'||h.role==='Striker'?.092:.245)-(p.ai==='Aggressive'?.017:0),crit:sheet.crit,skills:h.skills.slice(0,3),timers:[1.1+slot*.23,3+slot*.45,6+slot*.47],
+   gear:sheet.gear,tree:p.tree,stars:p.stars,ai:p.ai,priority:p.priority,passives,passTimers:passives.map(()=>0)});
  });
  const training=s.party.length===1&&!info.dungeon&&info.stage<=3;
  const count=training?1:info.boss?(info.dungeon?3:2):info.stage===1?2:Math.min(5,2+Math.floor((info.wave+info.stage%4)/2));

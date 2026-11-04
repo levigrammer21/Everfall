@@ -337,3 +337,72 @@ button.loot-card:hover{border-color:var(--tone)}
 .trend-list strong{color:#efcfad}
 @media(orientation:landscape) and (max-height:620px){.field-offer{top:49px}.field:has(.field-offer:not([hidden])) .field-toast{top:84px}}
 .live-meter{z-index:6}
+
+/* Active formation, reserve roster, and equipment comparison */
+.roster-section{margin:8px 0 19px}
+.roster-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 7px}
+.roster-heading h3{font-family:Georgia,serif;color:#f0d3b4;margin:0;font-size:1.17rem}
+.roster-heading small{color:var(--muted);font-size:.69rem;text-align:right}
+.active-roster,.reserve-roster,.armory-grid{display:grid;gap:7px}
+.active-roster{grid-template-columns:repeat(5,minmax(0,1fr))}
+.reserve-roster,.armory-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.roster-tile,.roster-empty{position:relative;min-width:0;min-height:108px;border:1px solid color-mix(in srgb,var(--tone,#694c70) 45%,#302238);border-radius:9px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px 3px;background:radial-gradient(ellipse at 50% 18%,color-mix(in srgb,var(--tone,#694c70) 17%,#251c30),#21182b 77%);color:var(--paper)}
+.roster-tile.selected,.roster-tile:hover{border-color:var(--tone);background:radial-gradient(ellipse at 50% 14%,color-mix(in srgb,var(--tone) 29%,#281e33),#21182b 85%)}
+.roster-tile.locked{opacity:.62}
+.roster-tile .portrait{flex:0 0 auto}
+.roster-tile strong{font-size:.74rem;line-height:1.17;overflow-wrap:anywhere}
+.roster-tile small,.roster-empty small{font-size:.63rem;line-height:1.14;color:#c9b9d0;overflow-wrap:anywhere}
+.roster-score{display:inline-flex;align-items:center;gap:3px;color:#f1cb8e;font-size:.69rem;font-weight:750}
+.roster-score svg{width:11px;height:11px}
+.slot-number{position:absolute;top:5px;left:5px;color:#f5c995;font-size:.62rem;font-weight:800;border-radius:5px;padding:2px 4px;background:#1e1528}
+.roster-empty{border-style:dashed;color:#ac93b7}
+.roster-empty>svg{width:23px;height:23px;margin-bottom:4px}
+.detail-back{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:0 0 10px;flex-wrap:wrap}
+.hero-score{margin-left:auto;text-align:right;color:#ffd391;padding:5px;min-width:64px}
+.hero-score small{font-size:.64rem;display:block;color:#d0bad0;white-space:nowrap}
+.hero-score strong{font-size:1.12rem;overflow-wrap:anywhere}
+.hero-stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 9px}
+.hero-stat-strip span{padding:7px;text-align:center;background:#2a2034;border:1px solid #49364f;border-radius:6px;font-size:.72rem;color:#cfbdd3}
+.hero-stat-strip b{color:#f8dfbd;margin-left:3px}
+.recipient{padding:7px 9px;margin:0 0 9px;border:1px solid #48374e;border-radius:8px;background:#22192c}
+.recipient-summary{display:flex;align-items:center;gap:7px}
+.recipient-summary>div{min-width:0}
+.recipient-summary>div small,.recipient-summary>div strong{display:block}
+.recipient-summary>div small{color:var(--muted);font-size:.66rem}
+.recipient-summary>div strong{font-size:.87rem}
+.recipient-summary>.btn{margin-left:auto;white-space:nowrap}
+.recipient-picker{margin:7px 0 2px;padding-top:8px;border-top:1px solid #4d3854}
+.recipient-picker .active-roster{margin-bottom:12px}
+.recipient-picker input{width:100%;margin-bottom:6px}
+.recipient-reserves{max-height:310px;overflow:auto;overscroll-behavior:contain}
+.armory-grid .char{min-width:0;padding:6px;gap:6px}
+.armory-grid .char strong{color:var(--tone);white-space:normal}
+.armory-grid .char small{white-space:normal}
+.swap-preview{padding:9px 10px;margin:0 0 9px;background:linear-gradient(135deg,#33253c,#22192d);border:1px solid #6b5066;border-radius:8px}
+.swap-preview>p{margin:7px 0;font-size:.74rem}
+.swap-preview>small{display:block;margin-top:7px;font-size:.65rem}
+.swap-preview>span{margin-left:8px;font-size:.74rem}
+.swap-score{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) minmax(0,1fr);gap:5px;align-items:center;text-align:center}
+.swap-score>span{color:#d3a579}
+.swap-score small,.swap-score strong{display:block}
+.swap-score small{color:#d8c2d8;font-size:.64rem}
+.swap-score strong{font-size:1.04rem;overflow-wrap:anywhere}
+.swap-score>div:last-child{border-left:1px solid #684b65;padding-left:4px}
+.swap-stats>div{display:grid;grid-template-columns:1fr auto 52px;gap:6px;align-items:center;padding:4px 0;border-top:1px solid #49374f;font-size:.71rem}
+.swap-stats>div>.score-delta{text-align:right}
+.score-delta{font-weight:800}
+.score-delta.gain{color:#83e4ad}
+.score-delta.loss{color:#ffa0a1}
+.score-delta.even{color:#c9b6d0}
+.equip-actions{margin-bottom:10px}
+@media(max-width:725px){.reserve-roster,.armory-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:515px){
+ .reserve-roster{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .armory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .active-roster{gap:4px}
+ .active-roster .roster-tile,.active-roster .roster-empty{min-height:101px;padding:9px 2px 6px}
+ .active-roster .roster-tile .portrait{transform:scale(.79);margin:-5px -6px}
+ .active-roster .roster-tile strong{font-size:.64rem}
+ .active-roster .roster-tile small{font-size:.56rem}
+ .active-roster .roster-score{font-size:.61rem}
+}

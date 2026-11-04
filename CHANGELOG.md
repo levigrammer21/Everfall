@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+- Heroes opens to five numbered active formation slots, with the reserve roster in a searchable grid.
+- Added role-weighted Battle Score to hero cards and hero details, plus gear swap previews with before and after stats.
+- Equipped slots open directly to matching gear, sorted by Biggest upgrade. Inventory uses a portrait picker for recipients and shows transfers, equipment restrictions, and displaced offhands before confirmation.
+
+
 ## 1.0.0
 
 - Added distinct hero signatures, companion instincts, tactical skill combos, and named mastery capstones. Hero and pet ascensions add signature effects at their milestone ranks.
