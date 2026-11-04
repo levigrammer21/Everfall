@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  match /everfallSaves/{uid} {
+   function owner() {
+    return request.auth != null && request.auth.uid == uid;
+   }
+   function valid() {
+    let save = request.resource.data;
+    return save.keys().hasOnly(['schema','revision','payload','client'])
+      && save.schema == 3 && save.revision is int
+      && save.client is string && save.client.size() <= 100
+      && save.payload is string && save.payload.size() < 950000;
+   }
+   allow get: if owner();
+   allow create: if owner() && valid() && request.resource.data.revision == 1;
+   allow update: if owner() && valid() && request.resource.data.revision == resource.data.revision + 1;
+  }
+ }
+}
