@@ -1,3 +1,5 @@
+import { bindDrag } from './drag-controls';
+import { dragAction } from './drag-actions';
 import { resolveOffer, upgradeGuild } from './expedition';
 import './style.css';
 import { GameAudio } from './audio';
@@ -61,7 +63,7 @@ async function cloudWrite(){
 function showAuth(message=''){
  loginShown=true;
  if(s){renderOverlay();return;}
- root.innerHTML='<main class="auth"><section class="auth-card"><p class="eyebrow">THE ENDLESS ROAD</p><div class="auth-emblem">'+icon('Summon')+'</div><h1>EVERFALL</h1><p class="auth-copy">Gather your war band and venture into the dark.</p><div id="auth-box">'+authForm(message)+'</div><p class="auth-build">BUILD 1.0.1</p></section></main>';
+ root.innerHTML='<main class="auth"><section class="auth-card"><p class="eyebrow">THE ENDLESS ROAD</p><div class="auth-emblem">'+icon('Summon')+'</div><h1>EVERFALL</h1><p class="auth-copy">Gather your war band and venture into the dark.</p><div id="auth-box">'+authForm(message)+'</div><p class="auth-build">BUILD 1.0.2</p></section></main>';
 }
 function authForm(message=''){
  return '<div class="auth-actions">'+btn('Continue with Google','google','gold')+'<form id="email-form"><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="6" required></label><div class="controls"><button class="btn bright" type="submit">Sign in</button><button class="btn quiet" type="submit" data-register="yes">Create account</button></div></form>'+btn('Reset password','resetPassword','micro')+
@@ -120,7 +122,7 @@ async function reconnect(force=false){
 function mount(){
  root.innerHTML='<main class="game"><header class="topbar"><button class="brand" data-action="close" aria-label="Return to battle"><span class="crest">'+icon('Summon')+'</span><span>EVERFALL<small>THE ENDLESS ROAD</small></span></button><div class="wallet"><span title="Gold">'+icon('gold')+'<b id="gold"></b></span><span title="Summoning crystals">'+icon('crystal')+'<b id="crystals"></b></span><span title="Dungeon keys">'+icon('key')+'<b id="keys"></b></span></div><button class="icon-btn" data-action="settings" aria-label="Settings">'+icon('gear')+'</button></header>'+
  '<section class="field" aria-label="Animated battlefield"><div id="scene"></div><div class="field-shade"></div><div class="field-label"><p id="field-kicker" class="eyebrow"></p><h1 id="field-name"></h1><p id="field-detail"></p></div><div class="battle-controls"><button class="mode" id="mode" data-action="mode" title="Change push or farm mode"></button><button class="icon-btn" id="pause" data-action="pause" aria-label="Pause combat">'+icon('pause')+'</button><button class="speed" id="speed" data-action="speed" aria-label="Combat speed">1×</button><button class="icon-btn live-toggle" data-action="liveMeter" id="live-toggle" aria-label="Battle meter" aria-expanded="false" title="Battle meter">'+icon('Stats')+'<span>Meter</span></button></div><aside id="live-meter" class="live-meter" aria-label="Battle meter" hidden><div class="live-bar"><strong>'+icon('Stats')+' Battle meter</strong><div><button data-action="liveWave:current" id="meter-current">Current</button><button data-action="liveWave:last" id="meter-last">Last wave</button><button data-action="liveMeter" class="live-close" aria-label="Close battle meter">'+icon('close')+'</button></div></div><div id="meter-body" class="meter-body"></div></aside><div id="field-toast" class="field-toast"></div><button class="btn gold field-offer" data-action="tab:Adventure" id="world-offer" hidden>Encounter waiting</button><div id="camp" class="camp" hidden></div><div class="field-edge"></div></section>'+
- '<section class="party-strip" aria-label="Active party"><span class="party-label">WAR BAND</span><div id="party"></div><span id="party-status"></span></section><nav class="nav" aria-label="Game navigation">'+tabs.map(t=>'<button data-action="tab:'+t+'">'+icon(t)+'<span>'+t+'</span></button>').join('')+'</nav><div class="footer"><span id="save-status">LOCAL SAVE</span><span>EVERFALL · 1.0.1</span></div></main><div id="overlay" class="overlay" hidden></div><div id="modal" class="modal" hidden></div><div id="toast" class="toast" role="status" hidden></div>';
+ '<section class="party-strip" aria-label="Active party"><span class="party-label">WAR BAND</span><div id="party"></div><span id="party-status"></span></section><nav class="nav" aria-label="Game navigation">'+tabs.map(t=>'<button data-action="tab:'+t+'">'+icon(t)+'<span>'+t+'</span></button>').join('')+'</nav><div class="footer"><span id="save-status">LOCAL SAVE</span><span>EVERFALL · 1.0.2</span></div></main><div id="overlay" class="overlay" hidden></div><div id="modal" class="modal" hidden></div><div id="toast" class="toast" role="status" hidden></div>';
  visual=launchBattlefield(el('scene')!);visual.scene.onCue=c=>audio.cue(c);
  hudHash='';
 }
@@ -183,8 +185,14 @@ function hud(force=false){
  const total=actors.reduce((a,u)=>a+u.hp,0),max=actors.reduce((a,u)=>a+u.max,0);
  setText('party-status',max?Math.round(total/max*100)+'% HP':'');liveHud();
 }
-function renderOverlay(keep=true){
+const dragging=bindDrag(root,(source,target)=>!!s&&!!dragAction(s,source,target),(source,target)=>{
  if(!s)return;
+ const result=dragAction(s,source,target,true);if(!result)return;
+ if(result.rebuild&&!s.dungeon?.camp)resetBattle();
+ changed();audio.confirm();renderOverlay();hud();toast(result.message);
+});
+function renderOverlay(keep=true){
+ if(!s||dragging())return;
  const over=el('overlay')!,modal=el('modal')!;
  const old=over.querySelector<HTMLElement>('.panel-content'),scroll=keep?old?.scrollTop??0:0;
  over.hidden=!(view.tab||view.setting||loginShown);
@@ -289,6 +297,7 @@ root.addEventListener('click',async e=>{
   case 'farm':modified=goFarm(Number(el<HTMLInputElement>('farm-stage')?.value));if(modified)view.tab=null;break;
   case 'worldOffer':modified=resolveOffer(s,n);break;
   case 'guildUpgrade':modified=upgradeGuild(s,n);break;
+  case 'benchHero':modified=rebuild=!!dragAction(s,'hero:'+n,'reserve',true);break;
   case 'partyAdd':modified=rebuild=setParty(s,n,s.party.length);break;
   case 'priority':{
    const order=s.hero[n].priority,j=(k+1)%order.length;[order[k],order[j]]=[order[j],order[k]];modified=rebuild=true;break;

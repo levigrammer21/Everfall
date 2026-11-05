@@ -57,7 +57,19 @@ const levels=(xp:number,pet=false)=>{
  const l=levelOf(xp,pet),cap=pet?100:1000,base=needXP(l,pet),next=needXP(l+1,pet),percent=l===cap?100:Math.floor((xp-base)/(next-base)*100);
  return '<div class="xp"><span>Level '+l+' / '+cap+'</span><span>'+ (l===cap?'Max level':num(xp-base)+' / '+num(next-base)+' XP')+'</span><div class="meter"><i style="width:'+percent+'%"></i></div></div>';
 };
-const char=(key:string,name:string,sub:string,action:string,selected:boolean,rarity:number,locked=false)=>'<button class="char'+(selected?' selected':'')+(locked?' locked':'')+'" data-action="'+action+'" style="--tone:'+colors[rarity]+'">'+portrait(key)+'<span><strong>'+esc(name)+'</strong><small>'+esc(sub)+'</small></span></button>';
+const grip='<span class="drag-grip" data-grip aria-hidden="true" title="Drag to move">⠿</span>';
+const dragData=(key:string,label:string)=>' data-drag="'+esc(key)+'" data-drag-label="'+esc(label)+'"';
+const dropData=(key:string)=>' data-drop="'+esc(key)+'"';
+function dropParty(s:Save,kind:'equip'|'petOwner',extra?:number){
+ const ids=extra!==undefined&&s.hero[extra]&&!s.party.includes(extra)?[...s.party,extra]:s.party;
+ if(!ids.length)return '';
+ return '<div class="quick-drop"><div class="quick-drop-title"><strong>'+(kind==='equip'?'Drop gear on a hero':'Drop a pet on a hero')+'</strong><small>Drag by ⠿</small></div><div class="quick-drop-grid">'+ids.map(id=>{
+  const pet=s.hero[id].pet;
+  return '<div class="quick-target"'+dropData(kind+':'+id)+'>'+portrait('h'+id)+'<strong>'+esc(heroes[id].name)+'</strong>'+
+   (kind==='petOwner'?'<small>'+esc(pet===null?'Empty':pets[pet].name)+'</small>':'')+'</div>';
+ }).join('')+'</div>'+(kind==='petOwner'?'<div class="drop-utilities"><span data-drop="petFree">Unassign</span><span data-drop="sanctuary">Sanctuary '+s.sanctuary.length+'/3</span></div>':'')+'</div>';
+}
+const char=(key:string,name:string,sub:string,action:string,selected:boolean,rarity:number,locked=false,drag='')=>'<button class="char'+(selected?' selected':'')+(locked?' locked':'')+'" data-action="'+action+'" style="--tone:'+colors[rarity]+'"'+(drag?dragData(drag,name):'')+'>'+portrait(key)+'<span><strong>'+esc(name)+'</strong><small>'+esc(sub)+'</small></span>'+(drag?grip:'')+'</button>';
 const section=(title:string,html:string)=>'<section class="box"><h3>'+title+'</h3>'+html+'</section>';
 const listPage=(v:View,count:number,size:number)=>count<=size?'':'<div class="pages">'+btn('Previous','page:-1','quiet',v.page<=0)+'<small>Page '+(v.page+1)+' of '+Math.ceil(count/size)+'</small>'+btn('Next','page:1','quiet',(v.page+1)*size>=count)+'</div>';
 const precise=new Intl.NumberFormat('en',{maximumFractionDigits:0});
@@ -69,10 +81,12 @@ function delta(value:number,fraction=0){
 function rosterTile(s:Save,id:number,position:number|null,action:string,selected=false,caption?:string){
  const h=heroes[id],owned=s.hero[id];
  const score=owned?scoreText(battleScore(s,id).score):'';
+ const drag=owned&&action.startsWith('hero:')?dragData('hero:'+id,h.name):'';
+ const target=drag&&position!==null?dropData('formation:'+position):'';
  const subtitle=caption??(owned?'Lv. '+heroLv(s,id)+' · '+h.role:'Undiscovered');
- return '<button class="roster-tile'+(selected?' selected':'')+(owned?'':' locked')+'" style="--tone:'+colors[h.rarity]+'" data-action="'+esc(action)+'"'+(action.startsWith('gearTarget:')?' aria-pressed="'+selected+'"':'')+'>'+
+ return '<button class="roster-tile'+(selected?' selected':'')+(owned?'':' locked')+'" style="--tone:'+colors[h.rarity]+'" data-action="'+esc(action)+'"'+(action.startsWith('gearTarget:')?' aria-pressed="'+selected+'"':'')+drag+target+'>'+
  (position===null?'':'<span class="slot-number">'+(position+1)+'</span>')+portrait('h'+id)+'<strong>'+esc(h.name)+'</strong><small>'+esc(subtitle)+'</small>'+
- (owned?'<span class="roster-score" aria-label="Battle Score '+score+'">'+icon('sword')+score+'</span>':'')+'</button>';
+ (owned?'<span class="roster-score" aria-label="Battle Score '+score+'">'+icon('sword')+score+'</span>':'')+(drag?grip:'')+'</button>';
 }
 function heroPanel(s:Save,v:View){
  const h=heroes[v.hero],p=s.hero[h.id],slot=s.party.indexOf(h.id),items=p?equippedItems(s,h.id):[];
@@ -82,9 +96,9 @@ function heroPanel(s:Save,v:View){
   const pool=heroes.filter(x=>!s.party.includes(x.id)&&match(x.name,v.search)&&(v.filter==='All'||(v.filter==='Owned'?s.hero[x.id]:rarities[x.rarity]===v.filter)));
   const scores=new Map(pool.filter(h=>s.hero[h.id]).map(h=>[h.id,battleScore(s,h.id).score]));
   const list=v.sort==='Score'?pool.sort((a,b)=>(scores.get(b.id)??0)-(scores.get(a.id)??0)):sortList(pool,s,v);
-  const active=Array.from({length:5},(_,i)=>s.party[i]===undefined?'<div class="roster-empty"><span class="slot-number">'+(i+1)+'</span>'+icon('Heroes')+'<small>Open slot</small></div>':rosterTile(s,s.party[i],i,'hero:'+s.party[i])).join('');
-  return heading+'<section class="roster-section"><div class="roster-heading"><h3>Active party</h3><small>'+s.party.length+' / 5 · Formation order</small></div><div class="active-roster">'+active+'</div></section>'+
-   '<section class="roster-section"><div class="roster-heading"><h3>Roster</h3><small>'+Math.max(0,owned-s.party.length)+' reserves</small></div>'+filters(v,['Owned',...rarities],true,[['Score','Battle Score']])+
+  const active=Array.from({length:5},(_,i)=>s.party[i]===undefined?'<div class="roster-empty"'+dropData('formation:'+i)+'><span class="slot-number">'+(i+1)+'</span>'+icon('Heroes')+'<small>Open slot</small></div>':rosterTile(s,s.party[i],i,'hero:'+s.party[i])).join('');
+  return heading+'<section class="roster-section formation-dropbar"><div class="roster-heading"><h3>Active party</h3><small>'+s.party.length+' / 5 · Drag by ⠿</small></div><div class="active-roster">'+active+'</div></section>'+
+   '<section class="roster-section"><div class="roster-heading"><h3>Roster</h3><small>'+Math.max(0,owned-s.party.length)+' reserves</small></div><div class="drop-utilities"><span data-drop="reserve">Drop here to bench a hero</span></div>'+filters(v,['Owned',...rarities],true,[['Score','Battle Score']])+
    '<div class="reserve-roster">'+(list.map(x=>rosterTile(s,x.id,null,'hero:'+x.id)).join('')||message('No reserve heroes match.'))+'</div></section>';
  }
  const sheet=p?battleScore(s,h.id):null;
@@ -93,9 +107,9 @@ function heroPanel(s:Save,v:View){
  (sheet?'<div class="hero-stat-strip"><span>HP <b>'+num(sheet.health)+'</b></span><span>Attack <b>'+num(sheet.attack)+'</b></span><span>Armor <b>'+num(sheet.armor)+'</b></span></div>':'');
  const activeBonds=bonds.filter(b=>b.a===h.id||b.b===h.id);
  return '<div class="detail-back">'+btn('‹ Back to heroes','heroList','quiet')+(slot<0?'':pill('Active · Slot '+(slot+1)))+'</div><div class="details">'+detail+
- (p?levels(p.xp)+section('Formation & behavior','<div class="controls">'+select('party:'+h.id,[[-1,'Choose formation slot'],...[0,1,2,3,4].map((i):[number,string]=>[i,(i+1)+'. '+(s.party[i]!==undefined?heroes[s.party[i]].name:'Empty')])],slot,'Formation slot')+(slot<0&&s.party.length<5?btn('Add to party','partyAdd:'+h.id,'gold'):'')+
- select('ai:'+h.id,['Balanced','Aggressive','Conserve'].map(x=>[x,x]),p.ai,'Combat AI')+'</div><p class="muted">Skill priority</p><div class="controls">'+p.priority.map((n,i)=>btn((i+1)+'. '+esc(h.skills[n].name),'priority:'+h.id+':'+i,'quiet')).join('')+'</div>')+
- section('Equipment & companion','<div class="gear-grid">'+slots.map((name,i)=>{const item=items.find(g=>g.id===p.gear[i]);return btn((item?itemPortrait(item.base,item.rank):slotIcon(i))+'<span>'+name+'<small>'+(item?esc(itemName(item)):'Empty')+'</small></span>','slot:'+i,'gear-slot');}).join('')+'</div><div class="controls"><label>Companion '+select('petFor:'+h.id,[[-1,'No pet'],...Object.keys(s.pet).map((id):[number,string]=>[+id,pets[+id].name])],p.pet??-1,'Hero companion')+'</label>'+
+ (p?levels(p.xp)+section('Formation & behavior','<div class="controls">'+select('party:'+h.id,[[-1,'Choose formation slot'],...[0,1,2,3,4].map((i):[number,string]=>[i,(i+1)+'. '+(s.party[i]!==undefined?heroes[s.party[i]].name:'Empty')])],slot,'Formation slot')+(slot<0&&s.party.length<5?btn('Add to party','partyAdd:'+h.id,'gold'):slot>=0&&s.party.length>1?btn('Move to reserves','benchHero:'+h.id,'quiet'):'')+
+ select('ai:'+h.id,['Balanced','Aggressive','Conserve'].map(x=>[x,x]),p.ai,'Combat AI')+'</div><p class="muted">Skill priority</p><div class="controls">'+p.priority.map((n,i)=>'<div class="priority-drag"'+dragData('skill:'+h.id+':'+i,h.skills[n].name)+dropData('priority:'+h.id+':'+i)+'>'+btn((i+1)+'. '+esc(h.skills[n].name)+grip,'priority:'+h.id+':'+i,'quiet')+'</div>').join('')+'</div>')+
+ section('Equipment & companion','<div class="gear-grid">'+slots.map((name,i)=>{const item=items.find(g=>g.id===p.gear[i]);return '<div class="gear-drag"'+(item?dragData('item:'+item.id,itemName(item)):'')+'>'+btn((item?itemPortrait(item.base,item.rank):slotIcon(i))+'<span>'+name+'<small>'+(item?esc(itemName(item)):'Empty')+'</small></span>'+(item?grip:''),'slot:'+i,'gear-slot')+'</div>';}).join('')+'</div><div class="drop-utilities"><span'+dropData('unequip:'+h.id)+'>Drop worn gear here to unequip</span></div><div class="controls"><label>Companion '+select('petFor:'+h.id,[[-1,'No pet'],...Object.keys(s.pet).map((id):[number,string]=>[+id,pets[+id].name])],p.pet??-1,'Hero companion')+'</label>'+
  btn('Save equipment loadout','saveLoadout:'+h.id,'quiet',s.loadouts.length>=12)+'</div>')+
  section('Ascension','<p>'+p.stars+' / 10 stars · '+p.essence+' '+esc(h.name)+' Essence</p><div class="controls">'+btn('Ascend · '+ascensionCost(p.stars)+' essence','ascendH:'+h.id,'gold',p.stars>=10||p.essence<ascensionCost(p.stars))+btn('Convert 5 spare essence','convert:'+h.id,'quiet',p.stars<10||p.essence<5)+'</div>')+
  section('Mastery · '+masteryPoints(p)+' points','<div class="tree">'+masteryNames.map((_,i)=>btn('<strong>'+esc(heroMastery(h.id,i).title)+'</strong><small>'+esc(heroMastery(h.id,i).description)+'</small>','master:'+h.id+':'+i,p.tree.includes(i)?'mastery on':'mastery',p.tree.includes(i)||i%4===3&&p.tree.some(n=>n%4===3)||masteryPoints(p)<=0||(i%4!==0&&!p.tree.includes(i-1)))).join('')+'</div>'+btn('Respec · 60 gold','respec:'+h.id,'quiet',!p.tree.length||s.gold<60)):'<p class="muted">Unlock through the summoning circle. You can inspect abilities before collecting this hero.</p>')+
@@ -104,9 +118,9 @@ function heroPanel(s:Save,v:View){
 function petPanel(s:Save,v:View){
  const pet=pets[v.pet],p=s.pet[pet.id],list=sortList(pets.filter(x=>match(x.name,v.search)&&(v.filter==='All'||(v.filter==='Owned'?s.pet[x.id]:rarities[x.rarity]===v.filter))),s,v,true);
  const owner=Object.keys(s.hero).find(id=>s.hero[+id].pet===pet.id);
- return hgroup('THE SANCTUARY','Pets',Object.keys(s.pet).length+' / 30 collected · one companion per hero')+
+ return hgroup('THE SANCTUARY','Pets',Object.keys(s.pet).length+' / 30 collected · one companion per hero')+dropParty(s,'petOwner')+
  '<div class="egg-row">'+eggNames.map((e,i)=>'<div class="egg-card" style="--tone:'+colors[i+1]+'">'+portrait('segg'+(i+2))+'<span><strong>'+e+'</strong><small>'+num(s.egg[i])+' available</small></span>'+btn('Hatch','hatch:'+i,'quiet',!s.egg[i])+'</div>').join('')+'</div>'+
- eggDisclosure()+filters(v,['Owned',...rarities])+'<div class="split"><div><div class="collection">'+(list.slice(v.page*12,v.page*12+12).map(x=>char('p'+x.id,x.name,s.pet[x.id]?'Lv. '+petLv(s,x.id)+' · '+x.effect:rarities[x.rarity]+' · Undiscovered','pet:'+x.id,x.id===pet.id,x.rarity,!s.pet[x.id])).join('')||message('No pets match.'))+'</div>'+listPage(v,list.length,12)+'</div>'+
+ eggDisclosure()+filters(v,['Owned',...rarities])+'<div class="split pet-split"><div class="pet-list"><div class="collection">'+(list.slice(v.page*12,v.page*12+12).map(x=>char('p'+x.id,x.name,s.pet[x.id]?'Lv. '+petLv(s,x.id)+' · '+x.effect:rarities[x.rarity]+' · Undiscovered','pet:'+x.id,x.id===pet.id,x.rarity,!s.pet[x.id],s.pet[x.id]?'pet:'+x.id:'')).join('')||message('No pets match.'))+'</div>'+listPage(v,list.length,12)+'</div>'+
  '<div class="details"><div class="subject" style="--tone:'+colors[pet.rarity]+'">'+portrait('p'+pet.id)+'<div><div class="tagrow">'+petPill(pet.id)+pill(pet.element,rgb(elements[pet.element]))+'</div><h3>'+esc(pet.name)+'</h3><p>Base attack '+num(pet.attack)+' · '+num(pet.cool)+'s action timer</p></div></div>'+
  (p?levels(p.xp,true)+section('Companion assignment',select('owner:'+pet.id,[[-1,'Unassigned'],...Object.keys(s.hero).map((h):[number,string]=>[+h,heroes[+h].name])],owner===undefined?-1:+owner,'Companion owner')+
  '<p class="muted">'+(owner===undefined?'Transfer this pet freely between heroes.':compatible(+owner,pet.id).join('. '))+'</p>'+btn(s.sanctuary.includes(pet.id)?'Remove from training':'Train in sanctuary','sanctuary:'+pet.id,'quiet',owner!==undefined||(!s.sanctuary.includes(pet.id)&&s.sanctuary.length>=3)))+
@@ -180,15 +194,15 @@ function itemPanel(s:Save,v:View){
  const i=s.items.find(x=>x.id===v.item),base=i?bases[i.base]:null;
  const compare=base&&s.hero[hero]?s.items.find(x=>s.hero[hero].gear[base.slot]===x.id):undefined,owner=i?wornBy(s,i.id):undefined;
  const back=v.gearFromHero?btn('‹ Back to '+esc(heroes[v.hero].name),'hero:'+v.hero,'quiet'):'';
- if(!v.itemFocus||!i||!base)return (back?'<div class="detail-back">'+back+'</div>':'')+header+gearRecipient(s,v,hero)+
+ if(!v.itemFocus||!i||!base)return (back?'<div class="detail-back">'+back+'</div>':'')+header+dropParty(s,'equip',hero)+gearRecipient(s,v,hero)+
   '<div class="inventory-tools">'+filters(v,['Equipped','Locked',...itemRanks,...slots],true,[['Upgrade','Biggest upgrade']])+
   '<div class="controls toolbar">'+select('autoSell',[[-1,'Auto-sell off'],...[0,1,2,3].map((n):[number,string]=>[n,'Sell '+itemRanks[n]+' and lower'])],s.autoSell,'Auto-sell threshold')+btn('Sell filtered unlocked gear','bulk','quiet',!visible.some(i=>!i.locked&&!equipped(s,i.id)))+'</div></div>'+
   '<div class="armory-grid">'+(visible.slice(v.page*12,v.page*12+12).map(j=>{
    const p=preview(j);
-   return '<button class="char item" data-action="item:'+esc(j.id)+'" style="--tone:'+itemColors[j.rank]+'">'+itemPortrait(j.base,j.rank)+'<span><strong>'+esc(itemName(j))+'</strong><small>'+slots[bases[j.base].slot]+' · Lv. '+j.level+(j.locked?' · Locked':'')+(equipped(s,j.id)?' · Worn':'')+'</small><small>'+(p?.after?delta(p.after.score-p.before.score)+' score':esc(p?.reason??''))+'</small></span></button>';
+   return '<button class="char item" data-action="item:'+esc(j.id)+'" style="--tone:'+itemColors[j.rank]+'"'+dragData('item:'+j.id,itemName(j))+'>'+itemPortrait(j.base,j.rank)+'<span><strong>'+esc(itemName(j))+'</strong><small>'+slots[bases[j.base].slot]+' · Lv. '+j.level+(j.locked?' · Locked':'')+(equipped(s,j.id)?' · Worn':'')+'</small><small>'+(p?.after?delta(p.after.score-p.before.score)+' score':esc(p?.reason??''))+'</small></span>'+grip+'</button>';
   }).join('')||message('No gear matches. Equipment drops during adventure.'))+'</div>'+listPage(v,visible.length,12);
- return '<div class="detail-back">'+btn('‹ Back to gear','itemList','quiet')+back+'</div><div class="details inventory-detail">'+
- '<div class="subject" style="--tone:'+itemColors[i.rank]+'">'+itemPortrait(i.base,i.rank)+'<div><div class="tagrow">'+pill(itemRanks[i.rank],itemColors[i.rank])+pill(slots[base.slot])+'</div><h3>'+esc(itemName(i))+'</h3><p>Level '+i.level+(base.role?' · '+base.role:'')+(base.two?' · Two-handed':'')+' · Found at stage '+num(i.found)+(i.exceptional?' · Exceptional roll':'')+'</p></div></div>'+
+ return '<div class="detail-back">'+btn('‹ Back to gear','itemList','quiet')+back+'</div><div class="details inventory-detail">'+dropParty(s,'equip',hero)+
+ '<div class="subject item-drag-detail" style="--tone:'+itemColors[i.rank]+'"'+dragData('item:'+i.id,itemName(i))+'>'+itemPortrait(i.base,i.rank)+'<div><div class="tagrow">'+pill(itemRanks[i.rank],itemColors[i.rank])+pill(slots[base.slot])+'</div><h3>'+esc(itemName(i))+'</h3><p>Level '+i.level+(base.role?' · '+base.role:'')+(base.two?' · Two-handed':'')+' · Found at stage '+num(i.found)+(i.exceptional?' · Exceptional roll':'')+'</p></div>'+grip+'</div>'+
  gearRecipient(s,v,hero,i)+(before?swapComparison(s,hero,i):'')+
  '<div class="controls equip-actions">'+btn(owner===String(hero)?'Unequip':owner?'Transfer gear':'Equip gear',owner===String(hero)?'unequip:'+hero+':'+base.slot:'equip:'+hero+':'+i.id,'gold',owner!==String(hero)&&!canEquip(s,hero,i))+btn(i.locked?'Unlock':'Lock','lock:'+i.id,'quiet')+btn('Sell · '+sellValue(i),'sell:'+i.id,'quiet',i.locked||!!owner)+'</div>'+
  (owner?'<p class="muted">Worn by '+esc(heroes[+owner].name)+'</p>':'')+
@@ -215,7 +229,7 @@ function guildPanel(s:Save){
  return hgroup('THE WAYSTATION','Guild Headquarters','Inactive heroes and pets can work while the party adventures, including while you are offline.')+
  '<div class="tagrow">'+pill('Research '+num(s.research))+pill('Infirmary '+num(s.infirmary))+pill('Scouting '+num(s.scout))+pill('Guild rank '+(1+Math.floor(Math.sqrt(s.guildXp/900))))+'</div>'+
  section('Headquarters upgrades','<div class="columns">'+guildUpgrades.map((track,i)=>'<div class="box"><strong>'+track.name+' · '+s.guildRanks[i]+' / 15</strong><p>'+track.description+'</p>'+btn('Upgrade · '+num(upgradeCost(s.guildRanks[i],i))+' gold','guildUpgrade:'+i,'gold',s.guildRanks[i]>=15||s.gold<upgradeCost(s.guildRanks[i],i))+'</div>').join('')+'</div>')+
- section('Hero assignments',inactive.map(id=>'<div class="job-row">'+portrait('h'+id)+'<strong>'+esc(heroes[id].name)+'</strong><small>'+heroes[id].role+' · Lv. '+heroLv(s,id)+'</small>'+select('job:'+id,[[-1,'Unassigned'],...guildJobs.slice(0,8).map((name,i):[number,string]=>[i,name])],s.hero[id].job??-1,'Guild assignment')+'</div>').join('')||'<p class="muted">Summon another hero to begin guild work.</p>')+
+ section('Hero assignments','<p>Drag a reserve hero by ⠿ onto a job.</p><div class="job-drop-grid">'+guildJobs.slice(0,8).map((name,index)=>'<span'+dropData('guild:'+index)+'>'+name+'</span>').join('')+'<span data-drop="guild:-1">Unassign</span></div>'+(inactive.map(id=>'<div class="job-row"'+dragData('guildHero:'+id,heroes[id].name)+'>'+grip+portrait('h'+id)+'<strong>'+esc(heroes[id].name)+'</strong><small>'+heroes[id].role+' · Lv. '+heroLv(s,id)+'</small>'+select('job:'+id,[[-1,'Unassigned'],...guildJobs.slice(0,8).map((name,i):[number,string]=>[i,name])],s.hero[id].job??-1,'Guild assignment')+'</div>').join('')||'<p class="muted">Summon another hero to begin guild work.</p>'))+
  '<div class="columns">'+guildJobs.map((name,i)=>section(name,'<p>'+jobDetail[i]+'</p><p class="muted">'+(i===8?s.sanctuary.length+' / 3 in training':inactive.filter(id=>s.hero[id].job===i).length+' assigned')+'</p>'+(i===8?btn('Open pets','tab:Pets','quiet'):'')+(i===5?btn('Monster encyclopedia','encyclopedia','quiet'):'')+(i===3?btn('Open equipment','tab:Inventory','quiet'):'') )).join('')+'</div>';
 }
 const statViews=['Battle report','Compare','Build journal','Farming','Encyclopedia','Achievements','Rare encounters'];
@@ -271,7 +285,7 @@ export function renderPanel(s:Save,v:View){
 }
 export function settings(s:Save,v:View){
  const range=(key:'shake'|'music'|'sfx',name:string)=>'<label class="slider"><span>'+name+'</span><input type="range" min="0" max="1" step=".05" value="'+s.settings[key]+'" data-setting="'+key+'"></label>';
- return hgroup('EVERFALL','Settings','Game build 1.0.1 · specification 3.0')+
+ return hgroup('EVERFALL','Settings','Game build 1.0.2 · specification 3.0')+
  section('Display & sound','<div class="controls"><label>Effects density '+select('quality',[[0,'Low'],[1,'Medium'],[2,'High']],s.settings.quality,'Effects quality')+'</label></div>'+range('shake','Screen shake')+range('music','Music volume')+range('sfx','Effects volume'))+
  section('Save profile','<p>'+esc(v.email||'Local expedition')+'</p><p class="muted">'+esc(v.sync)+'</p><div class="controls">'+(v.email?btn('Sign out','logout','quiet')+btn('Retry cloud sync','sync','quiet'):btn('Open cloud sign-in','login','gold'))+btn('Export save','export','quiet')+'</div><label class="import">Import save into this profile <input type="file" accept=".json,application/json" id="import-save"></label>');
 }

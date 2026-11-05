@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+- Added touch and mouse drag handles for party formation, reserve swaps, and benching.
+- Gear drops onto hero portraits in Inventory. Worn items can be dragged to Unequip on the hero screen.
+- Pets can be dropped on heroes, Unassign, or Sanctuary. Skill priorities and Guild assignments also support drag and drop.
+- Valid targets highlight during a drag, and the panel scrolls near its edges. The tap controls remain available.
+
+
 ## 1.0.1
 
 - Heroes opens to five numbered active formation slots, with the reserve roster in a searchable grid.

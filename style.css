@@ -406,3 +406,44 @@ button.loot-card:hover{border-color:var(--tone)}
  .active-roster .roster-tile small{font-size:.56rem}
  .active-roster .roster-score{font-size:.61rem}
 }
+
+/* Drag grips leave the rest of each card available for tapping and scrolling. */
+[data-drag]{position:relative}
+.drag-grip{display:inline-grid;place-items:center;flex:none;min-width:25px;min-height:27px;padding:0 3px;font:700 18px/1 system-ui,sans-serif;color:#edcf9e;background:#31223e;border:1px solid #695170;border-radius:5px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.roster-tile .drag-grip{position:absolute;top:3px;right:3px}
+.roster-tile[data-drag]{padding-top:23px}
+.roster-tile .drag-grip{min-width:22px;min-height:22px;font-size:16px}
+.armory-grid .drag-grip,.char .drag-grip,.item-drag-detail .drag-grip{margin-left:auto}
+.priority-drag .btn,.gear-drag .btn{width:100%;justify-content:space-between}
+.quick-drop,.formation-dropbar{position:sticky;top:0;z-index:4;background:#251c31;border:1px solid #56435e;border-radius:9px;padding:7px;margin:5px 0 10px}
+.quick-drop-title{display:flex;justify-content:space-between;align-items:center;gap:4px;color:#ecd1b2;margin:0 0 5px;font-size:.76rem}
+.quick-drop-title small{color:#c0aac5;font-size:.65rem}
+.quick-drop-grid{display:flex;gap:4px}
+.quick-target{display:grid;justify-items:center;align-content:start;gap:2px;flex:1;min-width:0;padding:3px 2px 5px;border:1px solid #5a4564;border-radius:6px;background:#30233c;text-align:center}
+.quick-target .portrait{transform:scale(.65);margin:-9px -12px}
+.quick-target strong,.quick-target small{min-width:0;overflow-wrap:anywhere;font-size:.62rem;line-height:1.12}
+.quick-target small{color:#cbb5d0;font-size:.55rem}
+.drop-utilities,.job-drop-grid{display:flex;gap:4px;flex-wrap:wrap;margin:5px 0}
+.drop-utilities span,.job-drop-grid span{border:1px dashed #826a88;background:#282035;border-radius:6px;padding:5px 7px;font-size:.69rem;color:#e0c6d9}
+.job-drop-grid{position:sticky;top:0;z-index:3;padding:5px;background:#251c31;border-radius:7px}
+.drag-source{opacity:.48}
+.dragging,.dragging *{cursor:grabbing;user-select:none;-webkit-user-select:none}
+.dragging .drop-ready{outline:2px solid #9eaa8d;outline-offset:-2px}
+.dragging .drop-hot{outline-color:#ffe0a0;background:#514130}
+.drag-ghost{position:fixed;inset:0 auto auto 0;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:3px;padding:4px 8px;background:#382943;border:1px solid #deb884;border-radius:7px;box-shadow:0 5px 16px #100d17aa;color:#ffe6c5;font-size:.74rem;max-width:170px}
+.drag-ghost .portrait{transform:scale(.57);margin:-11px -8px}
+@media(max-width:515px){
+ .active-roster .roster-tile[data-drag]{padding-top:23px}
+ .armory-grid .char[data-drag]{padding-right:2px}
+ .armory-grid .char .drag-grip{min-width:22px}
+ .quick-target .portrait{transform:scale(.56);margin:-11px -14px}
+ .quick-target strong{font-size:.56rem}
+}
+@media(max-width:515px){
+ .pet-split{display:block}
+ .pet-list{margin-bottom:10px}
+ .pet-list .collection{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Status notices sit above the panel visually and let touches reach cards underneath. */
+.toast{pointer-events:none}

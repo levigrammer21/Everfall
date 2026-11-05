@@ -1,12 +1,16 @@
 # Everfall
 
-**Build 1.0.0 · Development handoff 3.0**
+**Build 1.0.2 · Development handoff 3.0**
 
 Everfall runs as an idle fantasy RPG in the browser. This package includes both the browser build and the TypeScript source. The archive extracts into one **Everfall** folder. Inside that folder, the files are flat.
 
-## Update an existing 0.9.1 installation
+## Update an existing 1.0.1 installation
 
-The 1.0.0 changed-files ZIP assumes the 0.9.1 files are already in your repository. Extract the ZIP and upload the files inside its **Everfall** folder to the same repository root. Commit them together. The patch includes the prebuilt entry and new bundles, so you can upload from your phone. After Pages publishes the commit, reopen the game and check for **1.0.0** in Settings or the footer.
+The 1.0.2 changed-files ZIP assumes the 1.0.1 files are already in your repository. Extract the ZIP and upload the files inside its **Everfall** folder to the same repository root. Commit them together. The patch includes the prebuilt entry and new bundles, so you can upload from your phone. After Pages publishes the commit, reopen the game and check for **1.0.2** in Settings or the footer.
+
+## Drag controls
+
+Grab the ⠿ grip on a hero, item, pet, or skill and move it onto a highlighted target. In Heroes, drop onto a formation slot to swap or recruit, or use the reserves target to bench a hero. In Inventory, drop gear on a hero portrait. In Pets, drop on a hero, Unassign, or Sanctuary. In Guild, drop a reserve hero on a job. Drag near a panel edge to scroll. Tap controls are available for the same assignments and comparisons.
 
 ## First upload from your phone
 

@@ -284,3 +284,23 @@ test('displayed hero core stats match live combat, and better gear can be identi
  const score=battleScore(s,id),unit=createBattle(s,seed).units.find(u=>u.hero===id)!;
  assert.equal(score.health,unit.max);assert.equal(score.attack,unit.atk);assert.equal(score.armor,unit.armor);
 });
+
+test('drag assignments validate targets and share the existing save rules',async()=>{
+ const {dragAction}=await import('./drag-actions');
+ const s=legacySave(0,seed);
+ s.hero[12]=structuredClone(s.hero[39]);
+ s.pet[0]={xp:0,stars:0,essence:0};
+ const item={...makeItem(1,prng(1),'drag-item'),base:40,level:1};
+ s.items.push(item);
+ const original=structuredClone(s);
+ assert.ok(dragAction(s,'hero:12','formation:0'));assert.deepEqual(s,original);
+ assert.ok(dragAction(s,'hero:12','formation:0',true));assert.equal(s.party[0],12);
+ assert.ok(dragAction(s,'hero:12','reserve',true));assert.equal(s.party.includes(12),false);
+ assert.equal(dragAction(s,'hero:12','formation:5',true),null);
+ assert.ok(dragAction(s,'guildHero:12','guild:2',true));assert.equal(s.hero[12].job,2);
+ assert.ok(dragAction(s,'item:drag-item','equip:43',true));assert.equal(s.hero[43].gear[4],item.id);
+ assert.ok(dragAction(s,'item:drag-item','unequip:43',true));assert.equal(s.hero[43].gear[4],null);
+ assert.ok(dragAction(s,'pet:0','petOwner:43',true));assert.equal(s.hero[43].pet,0);
+ assert.ok(dragAction(s,'pet:0','sanctuary',true));assert.equal(s.hero[43].pet,null);assert.deepEqual(s.sanctuary,[0]);
+ assert.ok(dragAction(s,'skill:43:0','priority:43:2',true));assert.deepEqual(s.hero[43].priority,[1,2,0]);
+});
